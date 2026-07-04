@@ -21,4 +21,18 @@ describe("repository hygiene", () => {
     expect(files.some((file) => file.includes("spotify-exports"))).toBe(false);
     expect(files.some((file) => /liked-artists\./.test(file))).toBe(false);
   });
+
+  it("pins dependency versions instead of using floating latest ranges", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const versions = [
+      ...Object.values(pkg.dependencies ?? {}),
+      ...Object.values(pkg.devDependencies ?? {}),
+    ];
+
+    expect(versions).not.toContain("latest");
+    expect(versions.every((version) => /^\d+\.\d+\.\d+/.test(version))).toBe(true);
+  });
 });

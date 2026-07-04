@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { handleApiError, ok, requireApiUser } from "@/lib/api";
 import { importArtistCatalog } from "@/lib/catalogs";
+import { MAX_IMPORT_BYTES } from "@/lib/import-artists";
 
 const jsonImportSchema = z.object({
   name: z.string().min(1).default("Imported artist catalog"),
   filename: z.string().optional(),
-  content: z.string().min(1),
+  content: z.string().min(1).max(MAX_IMPORT_BYTES),
   source: z.string().optional(),
 });
 
@@ -20,6 +21,12 @@ export async function POST(request: Request) {
       if (!(file instanceof File)) {
         return ok({ error: "Missing file upload." }, { status: 400 });
       }
+      if (file.size > MAX_IMPORT_BYTES) {
+        return ok(
+          { error: `File exceeds ${Math.round(MAX_IMPORT_BYTES / 1024 / 1024)} MB limit.` },
+          { status: 413 },
+        );
+      }
 
       const result = await importArtistCatalog({
         name: String(form.get("name") || file.name || "Imported artist catalog"),
@@ -32,6 +39,7 @@ export async function POST(request: Request) {
       return ok({
         catalogId: result.catalog.id,
         artistCount: result.artistCount,
+        summary: result.summary,
       });
     }
 
@@ -44,6 +52,7 @@ export async function POST(request: Request) {
     return ok({
       catalogId: result.catalog.id,
       artistCount: result.artistCount,
+      summary: result.summary,
     });
   } catch (error) {
     return handleApiError(error);

@@ -1,5 +1,10 @@
 import { MatchStatus } from "@prisma/client";
-import { diceTokenScore, normalizeName, tokenSet } from "@/lib/normalize";
+import {
+  diceTokenScore,
+  normalizeArtistName,
+  splitCollaborationCandidates,
+  tokenSet,
+} from "@/lib/normalize";
 
 export type MatchableArtist = {
   id?: string;
@@ -52,10 +57,14 @@ export function scorePerformerArtist(
     };
   }
 
-  const performerName = performer.normalizedName ?? normalizeName(performer.name);
-  const artistName = artist.normalizedName ?? normalizeName(artist.name);
+  const performerNames = splitCollaborationCandidates(performer.name).map((name) =>
+    normalizeArtistName(name),
+  );
+  const performerName =
+    performer.normalizedName ?? performerNames.find(Boolean) ?? normalizeArtistName(performer.name);
+  const artistName = artist.normalizedName ?? normalizeArtistName(artist.name);
 
-  if (performerName && performerName === artistName) {
+  if (performerNames.includes(artistName) || (performerName && performerName === artistName)) {
     return {
       confidence: 94,
       status: MatchStatus.PENDING,
@@ -64,7 +73,7 @@ export function scorePerformerArtist(
   }
 
   const aliasMatch = getAliases(artist.aliases).some(
-    (alias) => normalizeName(alias) === performerName,
+    (alias) => performerNames.includes(normalizeArtistName(alias)),
   );
   if (aliasMatch) {
     return {

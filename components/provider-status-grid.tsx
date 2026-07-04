@@ -15,25 +15,29 @@ export function ProviderStatusGrid({ providers }: { providers: ProviderHealth[] 
         return (
           <div
             key={provider.key}
-            className="rounded-lg border border-[#d7dce2] bg-white p-4"
+            className="rounded-lg border border-border bg-panel p-4"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold">{provider.name}</h3>
-                <p className="mt-1 text-xs text-[#667085]">Priority {provider.priority}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Priority {provider.priority}
+                </p>
               </div>
               <Icon
                 className={
                   provider.status === "ready"
-                    ? "size-5 text-[#0f766e]"
+                    ? "size-5 text-success"
                     : provider.status === "disabled"
-                      ? "size-5 text-[#667085]"
-                      : "size-5 text-[#b45309]"
+                      ? "size-5 text-muted-foreground"
+                      : "size-5 text-warning"
                 }
                 aria-hidden="true"
               />
             </div>
-            <p className="mt-3 min-h-10 text-sm text-[#475467]">{provider.message}</p>
+            <p className="mt-3 min-h-10 text-sm text-muted-foreground">
+              {provider.message}
+            </p>
           </div>
         );
       })}

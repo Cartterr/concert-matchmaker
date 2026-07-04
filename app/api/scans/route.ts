@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const result = await scanTripEvents({
       ...body,
       requestedById: user.userId,
+      startedBy: user.name,
     });
     return ok({
       tripId: result.trip.id,

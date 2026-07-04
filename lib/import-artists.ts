@@ -1,6 +1,9 @@
 import { parse } from "csv-parse/sync";
 import { z } from "zod";
-import { normalizeName } from "@/lib/normalize";
+import { normalizeArtistName } from "@/lib/normalize";
+
+export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+export const MAX_IMPORT_ROWS = 20_000;
 
 export type ImportedArtist = {
   name: string;
@@ -11,6 +14,23 @@ export type ImportedArtist = {
   sampleTracks: string[];
   aliases: string[];
   externalIds: Record<string, string>;
+};
+
+export type ImportDrop = {
+  name: string;
+  reason: string;
+};
+
+export type ArtistImportSummary = {
+  parsed: number;
+  imported: number;
+  dropped: ImportDrop[];
+  duplicatesMerged: number;
+};
+
+export type ArtistCatalogParseResult = {
+  artists: ImportedArtist[];
+  summary: ArtistImportSummary;
 };
 
 const jsonArtistSchema = z
@@ -35,14 +55,32 @@ const jsonArtistSchema = z
   .passthrough();
 
 export function parseArtistCatalog(content: string, filename = "catalog") {
+  return parseArtistCatalogWithReport(content, filename).artists;
+}
+
+export function parseArtistCatalogWithReport(
+  content: string,
+  filename = "catalog",
+): ArtistCatalogParseResult {
+  if (Buffer.byteLength(content, "utf8") > MAX_IMPORT_BYTES) {
+    throw new Error(`Import exceeds ${MAX_IMPORT_BYTES} byte limit.`);
+  }
+
   const trimmed = content.trim();
-  if (!trimmed) return [];
+  if (!trimmed) {
+    return emptyResult();
+  }
 
-  const artists = filename.toLowerCase().endsWith(".json") || trimmed[0] === "{"
-    ? parseJsonArtists(trimmed)
-    : parseCsvArtists(trimmed);
+  const rawArtists =
+    filename.toLowerCase().endsWith(".json") || trimmed[0] === "{"
+      ? parseJsonArtists(trimmed)
+      : parseCsvArtists(trimmed);
 
-  return dedupeArtists(artists);
+  if (rawArtists.length > MAX_IMPORT_ROWS) {
+    throw new Error(`Import exceeds ${MAX_IMPORT_ROWS} row limit.`);
+  }
+
+  return dedupeArtists(rawArtists);
 }
 
 function parseJsonArtists(content: string) {
@@ -105,7 +143,7 @@ function mapJsonArtist(row: z.infer<typeof jsonArtistSchema>): ImportedArtist {
         ? row.sample_tracks
         : splitList(typeof row.sample_tracks === "string" ? row.sample_tracks : ""),
     aliases: row.aliases ?? [],
-    externalIds: row.externalIds ?? row.external_ids ?? {},
+    externalIds: sanitizeExternalIds(row.externalIds ?? row.external_ids ?? {}),
   });
 }
 
@@ -119,34 +157,45 @@ function normalizeImportedArtist(input: {
   externalIds?: Record<string, string>;
 }): ImportedArtist {
   const name = input.name.trim();
+  const spotifyId = blankToUndefined(input.spotifyId);
   return {
     name,
-    normalizedName: normalizeName(name),
-    spotifyId: blankToUndefined(input.spotifyId),
+    normalizedName: normalizeArtistName(name),
+    spotifyId,
     spotifyUrl: blankToUndefined(input.spotifyUrl),
     likedTrackCount: Math.max(0, input.likedTrackCount ?? 0),
     sampleTracks: uniqueStrings(input.sampleTracks ?? []),
     aliases: uniqueStrings(input.aliases ?? []),
     externalIds: {
       ...(input.externalIds ?? {}),
-      ...(blankToUndefined(input.spotifyId)
-        ? { spotifyId: blankToUndefined(input.spotifyId)! }
-        : {}),
+      ...(spotifyId ? { spotifyId } : {}),
     },
   };
 }
 
-function dedupeArtists(artists: ImportedArtist[]) {
+function dedupeArtists(artists: ImportedArtist[]): ArtistCatalogParseResult {
   const map = new Map<string, ImportedArtist>();
+  const dropped: ImportDrop[] = [];
+  let duplicatesMerged = 0;
 
   for (const artist of artists) {
-    if (!artist.name || !artist.normalizedName) continue;
+    if (!artist.name) {
+      dropped.push({ name: "", reason: "missing_name" });
+      continue;
+    }
+
+    if (!artist.normalizedName) {
+      dropped.push({ name: artist.name, reason: "unmatchable_name" });
+      continue;
+    }
+
     const existing = map.get(artist.normalizedName);
     if (!existing) {
       map.set(artist.normalizedName, artist);
       continue;
     }
 
+    duplicatesMerged += 1;
     existing.likedTrackCount += artist.likedTrackCount;
     existing.sampleTracks = uniqueStrings([
       ...existing.sampleTracks,
@@ -158,7 +207,29 @@ function dedupeArtists(artists: ImportedArtist[]) {
     existing.externalIds = { ...artist.externalIds, ...existing.externalIds };
   }
 
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const deduped = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    artists: deduped,
+    summary: {
+      parsed: artists.length,
+      imported: deduped.length,
+      dropped,
+      duplicatesMerged,
+    },
+  };
+}
+
+function emptyResult(): ArtistCatalogParseResult {
+  return {
+    artists: [],
+    summary: {
+      parsed: 0,
+      imported: 0,
+      dropped: [],
+      duplicatesMerged: 0,
+    },
+  };
 }
 
 function firstValue(row: Record<string, string>, keys: string[]) {
@@ -185,6 +256,14 @@ function toNumber(value?: string) {
 function blankToUndefined(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function sanitizeExternalIds(value: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([key, recordValue]) => key.trim() && recordValue.trim(),
+    ),
+  );
 }
 
 function isObject(value: unknown): value is { artists?: unknown[] } {

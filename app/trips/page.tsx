@@ -1,31 +1,31 @@
-import { auth } from "@/auth";
 import { AppShell } from "@/components/app-shell";
+import { LockedPanel } from "@/components/locked-panel";
 import { ManualEventForm } from "@/components/manual-event-form";
 import { ProviderStatusGrid } from "@/components/provider-status-grid";
 import { SetupPanel } from "@/components/setup-panel";
 import { TripScanClient } from "@/components/trip-scan-client";
 import { prisma } from "@/lib/db";
-import { getProviderHealth, isAuthConfigured, isDatabaseConfigured } from "@/lib/env";
-import { dateOnly, defaultTripProfile } from "@/lib/trips";
+import { getProviderHealth } from "@/lib/env";
+import { getPageAccess } from "@/lib/page-auth";
 import { ensureDefaultTrip } from "@/lib/scans";
+import { formatTripWindow } from "@/lib/time";
+import { defaultTripProfile } from "@/lib/trips";
 
 export const dynamic = "force-dynamic";
 
 export default async function TripsPage() {
-  const authConfigured = isAuthConfigured();
-  const databaseConfigured = isDatabaseConfigured();
-  const session =
-    authConfigured && databaseConfigured ? await auth().catch(() => null) : null;
-
+  const access = await getPageAccess();
   let trips = [defaultTripProfile];
   let latestCatalog: { id: string; name: string } | null = null;
   let error: string | undefined;
 
-  if (databaseConfigured) {
+  if (access.canRead) {
     try {
       await ensureDefaultTrip();
       const [dbTrips, catalog] = await Promise.all([
-        prisma.tripProfile.findMany({ orderBy: { startsOn: "asc" } }),
+        prisma.tripProfile.findMany({
+          orderBy: [{ isActive: "desc" }, { startsOn: "asc" }],
+        }),
         prisma.artistCatalog.findFirst({ orderBy: { createdAt: "desc" } }),
       ]);
       trips = dbTrips;
@@ -39,39 +39,45 @@ export default async function TripsPage() {
 
   return (
     <AppShell
-      userName={session?.user?.name ?? session?.user?.email}
-      authConfigured={authConfigured}
-      databaseConfigured={databaseConfigured}
+      userName={access.userName}
+      authConfigured={access.authConfigured}
+      databaseConfigured={access.databaseConfigured}
     >
-      {!authConfigured || !databaseConfigured || error ? (
+      {!access.canRead ? (
+        <LockedPanel
+          authConfigured={access.authConfigured}
+          databaseConfigured={access.databaseConfigured}
+        />
+      ) : error ? (
         <SetupPanel
-          authConfigured={authConfigured}
-          databaseConfigured={databaseConfigured}
+          authConfigured={access.authConfigured}
+          databaseConfigured={access.databaseConfigured}
           error={error}
         />
       ) : null}
 
+      {access.canRead ? (
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_360px]">
         <div className="space-y-5">
-          <section className="rounded-lg border border-[#d7dce2] bg-white p-5">
+          <section className="rounded-lg border border-border bg-panel p-5">
             <h1 className="text-lg font-semibold">{activeTrip.name}</h1>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-[#667085]">Location</dt>
+                <dt className="text-muted-foreground">Location</dt>
                 <dd className="mt-1 font-medium">{activeTrip.locationName}</dd>
               </div>
               <div>
-                <dt className="text-[#667085]">Window</dt>
+                <dt className="text-muted-foreground">Window</dt>
                 <dd className="mt-1 font-medium">
-                  {dateOnly(activeTrip.startsOn)} to {dateOnly(activeTrip.endsOn)}
+                  {formatTripWindow(activeTrip)}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#667085]">Radius</dt>
+                <dt className="text-muted-foreground">Radius</dt>
                 <dd className="mt-1 font-medium">{activeTrip.radiusMiles} miles</dd>
               </div>
               <div>
-                <dt className="text-[#667085]">Catalog</dt>
+                <dt className="text-muted-foreground">Catalog</dt>
                 <dd className="mt-1 font-medium">
                   {latestCatalog?.name ?? "No catalog imported"}
                 </dd>
@@ -88,6 +94,7 @@ export default async function TripsPage() {
           <ProviderStatusGrid providers={getProviderHealth()} />
         </aside>
       </div>
+      ) : null}
     </AppShell>
   );
 }

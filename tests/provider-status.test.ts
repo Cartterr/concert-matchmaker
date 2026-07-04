@@ -39,6 +39,17 @@ describe("provider health", () => {
 
     expect(bandsintown?.status).toBe("disabled");
   });
+
+  it("keeps Eventbrite disabled because public search is retired", () => {
+    process.env.EVENTBRITE_TOKEN = "redacted-test-key";
+
+    const eventbrite = getProviderHealth().find(
+      (provider) => provider.key === "eventbrite",
+    );
+
+    expect(eventbrite?.status).toBe("disabled");
+    expect(eventbrite?.message).toMatch(/retired/i);
+  });
 });
 
 describe("GitHub allowlist", () => {

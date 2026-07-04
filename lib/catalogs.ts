@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
-import { parseArtistCatalog, type ImportedArtist } from "@/lib/import-artists";
+import {
+  parseArtistCatalogWithReport,
+  type ImportedArtist,
+} from "@/lib/import-artists";
 
 export async function importArtistCatalog(input: {
   name: string;
@@ -8,15 +11,12 @@ export async function importArtistCatalog(input: {
   content: string;
   createdById?: string | null;
 }) {
-  const artists = parseArtistCatalog(input.content, input.filename);
+  const parsed = parseArtistCatalogWithReport(input.content, input.filename);
   const catalog = await prisma.artistCatalog.create({
     data: {
       name: input.name,
       source: input.source ?? input.filename ?? "manual",
       createdById: input.createdById ?? undefined,
-      artists: {
-        create: artists.map(toArtistCreateInput),
-      },
     },
     include: {
       _count: {
@@ -25,9 +25,20 @@ export async function importArtistCatalog(input: {
     },
   });
 
+  if (parsed.artists.length > 0) {
+    await prisma.artist.createMany({
+      data: parsed.artists.map((artist) => ({
+        catalogId: catalog.id,
+        ...toArtistCreateInput(artist),
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   return {
     catalog,
-    artistCount: catalog._count.artists,
+    artistCount: parsed.summary.imported,
+    summary: parsed.summary,
   };
 }
 

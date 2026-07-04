@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     }
 
     const trip = await ensureDefaultTrip();
-    const result = await scanTripEvents({ tripId: trip.id });
+    const result = await scanTripEvents({ tripId: trip.id, startedBy: "cron" });
     return ok({
       tripId: result.trip.id,
       catalogId: result.catalog?.id ?? null,

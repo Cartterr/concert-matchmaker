@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -16,34 +19,34 @@
     "mcp": "tsx scripts/mcp-server.ts"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "latest",
-    "@modelcontextprotocol/sdk": "latest",
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "latest",
-    "clsx": "latest",
-    "csv-parse": "latest",
-    "lucide-react": "latest",
-    "next": "latest",
+    "@auth/prisma-adapter": "2.11.2",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "clsx": "2.1.1",
+    "csv-parse": "7.0.1",
+    "lucide-react": "1.23.0",
+    "next": "16.2.10",
     "next-auth": "5.0.0-beta.31",
-    "pg": "^8.22.0",
-    "react": "latest",
-    "react-dom": "latest",
-    "tailwind-merge": "latest",
-    "zod": "latest"
+    "pg": "8.22.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tailwind-merge": "3.6.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "latest",
-    "@tailwindcss/postcss": "latest",
-    "@types/node": "latest",
-    "@types/pg": "^8.20.0",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
+    "@eslint/eslintrc": "3.3.5",
+    "@tailwindcss/postcss": "4.3.2",
+    "@types/node": "26.1.0",
+    "@types/pg": "8.20.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
     "eslint": "9.39.1",
-    "eslint-config-next": "latest",
-    "prisma": "latest",
-    "tailwindcss": "latest",
-    "tsx": "latest",
-    "typescript": "latest",
-    "vitest": "latest"
+    "eslint-config-next": "16.2.10",
+    "prisma": "7.8.0",
+    "tailwindcss": "4.3.2",
+    "tsx": "4.22.5",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
   }
 }

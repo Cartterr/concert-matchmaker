@@ -22,7 +22,7 @@ export function getProviderAdapters(): EventProviderAdapter[] {
     createAdapter("ticketmaster", scanTicketmaster),
     createAdapter("seatgeek", scanSeatGeek),
     createAdapter("predicthq", scanPredictHq),
-    createAdapter("eventbrite", scanEventbrite),
+    createDisabledAdapter("eventbrite"),
     createDisabledAdapter("songkick"),
     createDisabledAdapter("bandsintown"),
   ].sort((a, b) => a.priority - b.priority);
@@ -83,8 +83,16 @@ async function scanTicketmaster(
   url.searchParams.set("size", "200");
   url.searchParams.set("sort", "date,asc");
 
-  const payload = await fetchJson<UnknownRecord>(url);
-  const events = arrayAt(payload, ["_embedded", "events"]);
+  const events: unknown[] = [];
+  for (let page = 0; page < 5; page += 1) {
+    url.searchParams.set("page", String(page));
+    const payload = await fetchJson<UnknownRecord>(url);
+    events.push(...arrayAt(payload, ["_embedded", "events"]));
+    const pageInfo = asRecord(path(payload, ["page"]));
+    const totalPages = numberFrom(pageInfo?.totalPages) ?? page + 1;
+    if (page >= totalPages - 1 || events.length >= 1000) break;
+    await sleep(225);
+  }
 
   return {
     provider: "ticketmaster",
@@ -96,13 +104,12 @@ async function scanJamBase(trip: ProviderTrip): Promise<ProviderScanResult> {
   const url = new URL(
     process.env.JAMBASE_API_BASE_URL ?? "https://data.jambase.com/v3/events",
   );
-  url.searchParams.set("apikey", process.env.JAMBASE_API_KEY!);
-  url.searchParams.set("lat", String(trip.latitude));
-  url.searchParams.set("lon", String(trip.longitude));
-  url.searchParams.set("radius", String(trip.radiusMiles));
-  url.searchParams.set("startDate", trip.startsOn.toISOString().slice(0, 10));
-  url.searchParams.set("endDate", trip.endsOn.toISOString().slice(0, 10));
-  url.searchParams.set("category", "music");
+  url.searchParams.set("geoLatitude", String(trip.latitude));
+  url.searchParams.set("geoLongitude", String(trip.longitude));
+  url.searchParams.set("geoRadiusAmount", String(trip.radiusMiles));
+  url.searchParams.set("geoRadiusUnits", "mi");
+  url.searchParams.set("eventDateFrom", trip.startsOn.toISOString().slice(0, 10));
+  url.searchParams.set("eventDateTo", trip.endsOn.toISOString().slice(0, 10));
 
   const payload = await fetchJson<UnknownRecord>(url, {
     headers: {
@@ -110,6 +117,9 @@ async function scanJamBase(trip: ProviderTrip): Promise<ProviderScanResult> {
     },
   });
   const events = firstArrayAt(payload, [["events"], ["results"], ["data"]]);
+  if (events.length === 0 && !hasKnownArray(payload, ["events", "results", "data"])) {
+    throw new Error("JamBase response did not include an events array.");
+  }
 
   return {
     provider: "jambase",
@@ -126,13 +136,21 @@ async function scanSeatGeek(trip: ProviderTrip): Promise<ProviderScanResult> {
   url.searchParams.set("lat", String(trip.latitude));
   url.searchParams.set("lon", String(trip.longitude));
   url.searchParams.set("range", `${Math.round(trip.radiusMiles)}mi`);
-  url.searchParams.set("datetime_local.gte", trip.startsOn.toISOString());
-  url.searchParams.set("datetime_local.lte", trip.endsOn.toISOString());
+  url.searchParams.set("datetime_utc.gte", trip.startsOn.toISOString());
+  url.searchParams.set("datetime_utc.lte", trip.endsOn.toISOString());
   url.searchParams.set("taxonomies.name", "concert");
   url.searchParams.set("per_page", "100");
 
-  const payload = await fetchJson<UnknownRecord>(url);
-  const events = arrayAt(payload, ["events"]);
+  const events: unknown[] = [];
+  for (let page = 1; page <= 10; page += 1) {
+    url.searchParams.set("page", String(page));
+    const payload = await fetchJson<UnknownRecord>(url);
+    const pageEvents = arrayAt(payload, ["events"]);
+    events.push(...pageEvents);
+    const meta = asRecord(path(payload, ["meta"]));
+    const total = numberFrom(meta?.total) ?? events.length;
+    if (pageEvents.length === 0 || events.length >= total) break;
+  }
 
   return {
     provider: "seatgeek",
@@ -146,15 +164,22 @@ async function scanPredictHq(trip: ProviderTrip): Promise<ProviderScanResult> {
   url.searchParams.set("within", `${trip.radiusMiles}mi@${trip.latitude},${trip.longitude}`);
   url.searchParams.set("start.gte", isoWithoutMs(trip.startsOn));
   url.searchParams.set("start.lte", isoWithoutMs(trip.endsOn));
+  url.searchParams.set("start.tz", trip.timezone);
   url.searchParams.set("limit", "100");
   url.searchParams.set("sort", "start");
 
-  const payload = await fetchJson<UnknownRecord>(url, {
-    headers: {
-      Authorization: `Bearer ${process.env.PREDICTHQ_ACCESS_TOKEN}`,
-    },
-  });
-  const events = arrayAt(payload, ["results"]);
+  const events: unknown[] = [];
+  for (let offset = 0; offset <= 900; offset += 100) {
+    url.searchParams.set("offset", String(offset));
+    const payload = await fetchJson<UnknownRecord>(url, {
+      headers: {
+        Authorization: `Bearer ${process.env.PREDICTHQ_ACCESS_TOKEN}`,
+      },
+    });
+    const pageEvents = arrayAt(payload, ["results"]);
+    events.push(...pageEvents);
+    if (!textFrom(payload.next) || pageEvents.length === 0) break;
+  }
 
   return {
     provider: "predicthq",
@@ -162,34 +187,14 @@ async function scanPredictHq(trip: ProviderTrip): Promise<ProviderScanResult> {
   };
 }
 
-async function scanEventbrite(trip: ProviderTrip): Promise<ProviderScanResult> {
-  const url = new URL("https://www.eventbriteapi.com/v3/events/search/");
-  url.searchParams.set("location.latitude", String(trip.latitude));
-  url.searchParams.set("location.longitude", String(trip.longitude));
-  url.searchParams.set("location.within", `${Math.round(trip.radiusMiles)}mi`);
-  url.searchParams.set("start_date.range_start", trip.startsOn.toISOString());
-  url.searchParams.set("start_date.range_end", trip.endsOn.toISOString());
-  url.searchParams.set("categories", "103");
-  url.searchParams.set("expand", "venue");
-
-  const payload = await fetchJson<UnknownRecord>(url, {
-    headers: {
-      Authorization: `Bearer ${process.env.EVENTBRITE_TOKEN}`,
-    },
-  });
-  const events = arrayAt(payload, ["events"]);
-
-  return {
-    provider: "eventbrite",
-    events: events.map(mapEventbriteEvent).filter(isEvent),
-  };
-}
-
 export function getAdapterHealth(): ProviderHealth[] {
   return getProviderAdapters().map((adapter) => adapter.health());
 }
 
-function mapTicketmasterEvent(event: UnknownRecord): NormalizedProviderEvent | null {
+function mapTicketmasterEvent(value: unknown): NormalizedProviderEvent | null {
+  const event = asRecord(value);
+  if (!event) return null;
+
   const venues = arrayAt(event, ["_embedded", "venues"]);
   const venue = asRecord(venues[0]);
   const attractions = arrayAt(event, ["_embedded", "attractions"]);
@@ -229,7 +234,10 @@ function mapTicketmasterEvent(event: UnknownRecord): NormalizedProviderEvent | n
   };
 }
 
-function mapJamBaseEvent(event: UnknownRecord): NormalizedProviderEvent | null {
+function mapJamBaseEvent(value: unknown): NormalizedProviderEvent | null {
+  const event = asRecord(value);
+  if (!event) return null;
+
   const venue = asRecord(event.venue) ?? asRecord(path(event, ["location"]));
   const title = textFrom(event.name) ?? textFrom(event.title);
   if (!title || !venue) return null;
@@ -256,7 +264,10 @@ function mapJamBaseEvent(event: UnknownRecord): NormalizedProviderEvent | null {
   };
 }
 
-function mapSeatGeekEvent(event: UnknownRecord): NormalizedProviderEvent | null {
+function mapSeatGeekEvent(value: unknown): NormalizedProviderEvent | null {
+  const event = asRecord(value);
+  if (!event) return null;
+
   const venue = asRecord(event.venue);
   const title = textFrom(event.title) ?? textFrom(event.short_title);
   if (!title || !venue) return null;
@@ -295,11 +306,13 @@ function mapSeatGeekEvent(event: UnknownRecord): NormalizedProviderEvent | null 
   };
 }
 
-function mapPredictHqEvent(event: UnknownRecord): NormalizedProviderEvent | null {
+function mapPredictHqEvent(value: unknown): NormalizedProviderEvent | null {
+  const event = asRecord(value);
+  if (!event) return null;
+
   const title = textFrom(event.title);
   if (!title) return null;
   const location = Array.isArray(event.location) ? event.location : [];
-  const entities = arrayAt(event, ["entities"]);
 
   return {
     provider: "predicthq",
@@ -324,27 +337,7 @@ function mapPredictHqEvent(event: UnknownRecord): NormalizedProviderEvent | null
       region: textFrom(path(event, ["geo", "address", "region"])),
       country: textFrom(path(event, ["geo", "address", "country_code"])),
     },
-    performers: entities.map(mapGenericPerformer).filter(isPerformer),
-  };
-}
-
-function mapEventbriteEvent(event: UnknownRecord): NormalizedProviderEvent | null {
-  const venue = asRecord(event.venue);
-  const title = textFrom(path(event, ["name", "text"])) ?? textFrom(event.name);
-  if (!title) return null;
-
-  return {
-    provider: "eventbrite",
-    providerId: textFrom(event.id),
-    title,
-    startAt: parseDate(path(event, ["start", "utc"])),
-    startLocal: textFrom(path(event, ["start", "local"])),
-    timezone: textFrom(path(event, ["start", "timezone"])),
-    status: textFrom(event.status) ?? "scheduled",
-    providerUrl: textFrom(event.url),
-    ticketUrl: textFrom(event.url),
-    venue: venue ? mapGenericVenue(venue) : { providerId: title, name: "Unknown venue" },
-    performers: [{ name: title, billing: "event_title" }],
+    performers: [],
   };
 }
 
@@ -414,6 +407,10 @@ function firstArrayAt(record: UnknownRecord, paths: string[][]) {
   return [];
 }
 
+function hasKnownArray(record: UnknownRecord, keys: string[]) {
+  return keys.some((key) => key in record);
+}
+
 function path(record: unknown, keys: string[]) {
   let current: unknown = record;
   for (const key of keys) {
@@ -445,4 +442,8 @@ function isPerformer(
   value: NormalizedPerformer | null,
 ): value is NormalizedPerformer {
   return Boolean(value?.name);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

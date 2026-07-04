@@ -1,26 +1,25 @@
-import { auth } from "@/auth";
 import { AppShell } from "@/components/app-shell";
+import { LockedPanel } from "@/components/locked-panel";
 import { MatchTable } from "@/components/match-table";
 import { ProviderStatusGrid } from "@/components/provider-status-grid";
 import { SetupPanel } from "@/components/setup-panel";
 import { StatCard } from "@/components/stat-card";
 import { prisma } from "@/lib/db";
-import { getProviderHealth, isAuthConfigured, isDatabaseConfigured } from "@/lib/env";
-import { dateOnly, defaultTripProfile } from "@/lib/trips";
-import { ensureDefaultTrip, listRankedMatches } from "@/lib/scans";
+import { getProviderHealth } from "@/lib/env";
+import { getPageAccess } from "@/lib/page-auth";
+import { listRankedMatches } from "@/lib/scans";
+import { formatTripWindow } from "@/lib/time";
+import { defaultTripProfile } from "@/lib/trips";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const authConfigured = isAuthConfigured();
-  const databaseConfigured = isDatabaseConfigured();
-  const session =
-    authConfigured && databaseConfigured ? await auth().catch(() => null) : null;
+  const access = await getPageAccess();
   const providers = getProviderHealth();
 
   let data = {
     tripName: defaultTripProfile.name,
-    tripWindow: `${dateOnly(defaultTripProfile.startsOn)} to ${dateOnly(defaultTripProfile.endsOn)}`,
+    tripWindow: formatTripWindow(defaultTripProfile),
     catalogCount: 0,
     artistCount: 0,
     latestScan: "No scans",
@@ -35,10 +34,13 @@ export default async function DashboardPage() {
   };
   let error: string | undefined;
 
-  if (databaseConfigured) {
+  if (access.canRead) {
     try {
       const [trip, catalogs, artistCount, latestRun, matches] = await Promise.all([
-        ensureDefaultTrip(),
+        prisma.tripProfile.findFirst({
+          where: { isActive: true },
+          orderBy: { startsOn: "asc" },
+        }),
         prisma.artistCatalog.count(),
         prisma.artist.count(),
         prisma.providerRun.findFirst({ orderBy: { startedAt: "desc" } }),
@@ -46,8 +48,8 @@ export default async function DashboardPage() {
       ]);
 
       data = {
-        tripName: trip.name,
-        tripWindow: `${dateOnly(trip.startsOn)} to ${dateOnly(trip.endsOn)}`,
+        tripName: trip?.name ?? defaultTripProfile.name,
+        tripWindow: formatTripWindow(trip ?? defaultTripProfile),
         catalogCount: catalogs,
         artistCount,
         latestScan: latestRun
@@ -62,43 +64,68 @@ export default async function DashboardPage() {
 
   return (
     <AppShell
-      userName={session?.user?.name ?? session?.user?.email}
-      authConfigured={authConfigured}
-      databaseConfigured={databaseConfigured}
+      userName={access.userName}
+      authConfigured={access.authConfigured}
+      databaseConfigured={access.databaseConfigured}
     >
-      {!authConfigured || !databaseConfigured || error ? (
+      {!access.canRead ? (
+        <LockedPanel
+          authConfigured={access.authConfigured}
+          databaseConfigured={access.databaseConfigured}
+        />
+      ) : error ? (
         <SetupPanel
-          authConfigured={authConfigured}
-          databaseConfigured={databaseConfigured}
+          authConfigured={access.authConfigured}
+          databaseConfigured={access.databaseConfigured}
           error={error}
         />
       ) : null}
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Active trip" value={data.tripName} detail={data.tripWindow} />
-        <StatCard label="Catalogs" value={data.catalogCount} detail="Imported sets" />
-        <StatCard label="Artists" value={data.artistCount} detail="Matchable names" />
-        <StatCard label="Latest scan" value={data.latestScan} detail="Provider run" />
-      </div>
-
-      <section className="mt-6">
-        <div className="mb-3 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Provider health</h2>
-            <p className="mt-1 text-sm text-[#667085]">
-              Missing keys skip cleanly; disabled providers remain visible.
-            </p>
+      {access.canRead ? (
+        <>
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Active trip"
+              value={data.tripName}
+              detail={data.tripWindow}
+            />
+            <StatCard
+              label="Catalogs"
+              value={data.catalogCount}
+              detail="Imported sets"
+            />
+            <StatCard
+              label="Artists"
+              value={data.artistCount}
+              detail="Matchable names"
+            />
+            <StatCard
+              label="Latest scan"
+              value={data.latestScan}
+              detail="Provider run"
+            />
           </div>
-        </div>
-        <ProviderStatusGrid providers={providers} />
-      </section>
 
-      <section className="mt-6">
-        <div className="mb-3">
-          <h2 className="text-base font-semibold">Top ranked matches</h2>
-        </div>
-        <MatchTable matches={data.matches} showReview={false} />
-      </section>
+          <section className="mt-6">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Provider health</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Missing keys skip cleanly; disabled providers remain visible.
+                </p>
+              </div>
+            </div>
+            <ProviderStatusGrid providers={providers} />
+          </section>
+
+          <section className="mt-6">
+            <div className="mb-3">
+              <h2 className="text-base font-semibold">Top ranked matches</h2>
+            </div>
+            <MatchTable matches={data.matches} showReview={false} />
+          </section>
+        </>
+      ) : null}
     </AppShell>
   );
 }

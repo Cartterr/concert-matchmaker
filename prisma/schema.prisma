@@ -22,6 +22,9 @@ model User {
   accounts      Account[]
   sessions      Session[]
   catalogs      ArtistCatalog[]
+  trips         TripProfile[]
+  providerRuns  ProviderRun[]
+  manualImports ManualImport[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 }
@@ -48,7 +51,7 @@ model Account {
 }
 
 model Session {
-  sessionToken String   @unique
+  sessionToken String   @id
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -72,6 +75,7 @@ model ArtistCatalog {
   createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   artists     Artist[]
+  providerRuns ProviderRun[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -109,9 +113,16 @@ model TripProfile {
   startsOn     DateTime
   endsOn       DateTime
   timezone     String   @default("America/Los_Angeles")
+  isActive     Boolean  @default(false)
+  createdById  String?
+  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  providerRuns ProviderRun[]
+  matches      Match[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  @@index([isActive])
+  @@index([createdById])
   @@index([startsOn, endsOn])
 }
 
@@ -154,6 +165,7 @@ model Event {
   venue          Venue?      @relation(fields: [venueId], references: [id], onDelete: SetNull)
   performers     Performer[]
   matches        Match[]
+  manualImports  ManualImport[]
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -182,13 +194,25 @@ model ProviderRun {
   id             String   @id @default(cuid())
   provider       String
   status         String
+  tripId         String?
+  trip           TripProfile? @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  catalogId      String?
+  catalog        ArtistCatalog? @relation(fields: [catalogId], references: [id], onDelete: SetNull)
+  startedById    String?
+  startedBy      User?    @relation(fields: [startedById], references: [id], onDelete: SetNull)
+  paramsJson     Json?
+  errorClass     String?
   skippedReason  String?
   startedAt      DateTime @default(now())
   completedAt    DateTime?
   eventsFetched  Int      @default(0)
   matchesCreated Int      @default(0)
   message        String?
+  matches        Match[]
 
+  @@index([tripId, startedAt])
+  @@index([catalogId, startedAt])
+  @@index([status, startedAt])
   @@index([provider, startedAt])
 }
 
@@ -198,15 +222,23 @@ model Match {
   event          Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   artistId       String
   artist         Artist      @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  tripId         String
+  trip           TripProfile @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  providerRunId  String?
+  providerRun    ProviderRun? @relation(fields: [providerRunId], references: [id], onDelete: SetNull)
   confidence     Int
   status         MatchStatus @default(PENDING)
+  reviewedAt     DateTime?
+  reviewedBy     String?
   reasons        Json
   sourceProvider String
   distanceMiles  Float?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  @@unique([eventId, artistId])
+  @@unique([eventId, artistId, tripId])
+  @@index([tripId, status, confidence])
+  @@index([providerRunId])
   @@index([confidence])
   @@index([status])
 }
@@ -215,6 +247,14 @@ model ManualImport {
   id            String   @id @default(cuid())
   filename      String?
   sourceNote    String?
+  eventId       String?
+  event         Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdById   String?
+  createdBy     User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  payloadJson   Json?
   eventsCreated Int      @default(0)
   createdAt     DateTime @default(now())
+
+  @@index([eventId])
+  @@index([createdById])
 }

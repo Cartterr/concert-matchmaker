@@ -5,7 +5,12 @@ import { z } from "zod";
 import { importArtistCatalog } from "@/lib/catalogs";
 import { prisma } from "@/lib/db";
 import { normalizeName, safeJsonText } from "@/lib/normalize";
-import { ensureDefaultTrip, listRankedMatches, reviewMatch, scanTripEvents } from "@/lib/scans";
+import {
+  ensureDefaultTrip,
+  listRankedMatches,
+  reviewMatch,
+  scanTripEvents,
+} from "@/lib/scans";
 
 const server = new McpServer({
   name: "concert-matchmaker",
@@ -54,6 +59,7 @@ server.registerTool(
     const result = await scanTripEvents({
       tripId: input.tripId ?? trip?.id,
       catalogId: input.catalogId,
+      startedBy: "mcp",
     });
 
     return jsonToolResult({
@@ -93,6 +99,8 @@ server.registerTool(
       include: {
         artist: true,
         event: { include: { venue: true, performers: true } },
+        trip: true,
+        providerRun: true,
       },
       orderBy: [{ confidence: "desc" }, { distanceMiles: "asc" }],
       take: input.limit,
@@ -130,7 +138,7 @@ server.registerTool(
     },
   },
   async (input) => {
-    const match = await reviewMatch(input);
+    const match = await reviewMatch({ ...input, reviewedBy: "mcp" });
     return jsonToolResult({
       matchId: match.id,
       status: match.status,

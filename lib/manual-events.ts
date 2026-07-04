@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
-import { normalizeName } from "@/lib/normalize";
+import { normalizeArtistName } from "@/lib/normalize";
 import { persistNormalizedEvent, matchEventToArtists } from "@/lib/scans";
 import type { NormalizedProviderEvent } from "@/lib/providers";
+import { parseLocalDateTimeInZone } from "@/lib/time";
 
 export async function createManualEvent(input: {
   title: string;
@@ -18,6 +19,7 @@ export async function createManualEvent(input: {
   tripId?: string;
   catalogId?: string;
   sourceNote?: string;
+  createdById?: string | null;
 }) {
   const trip = input.tripId
     ? await prisma.tripProfile.findUniqueOrThrow({ where: { id: input.tripId } })
@@ -31,15 +33,18 @@ export async function createManualEvent(input: {
 
   const event: NormalizedProviderEvent = {
     provider: "manual",
-    providerId: `${normalizeName(input.title)}:${input.startAt ?? "unknown"}`,
+    providerId: `${normalizeArtistName(input.title)}:${input.startAt ?? "unknown"}`,
     title: input.title,
-    startAt: input.startAt ? new Date(input.startAt) : undefined,
+    startAt: input.startAt
+      ? parseLocalDateTimeInZone(input.startAt, trip.timezone)
+      : undefined,
     startLocal: input.startAt,
+    timezone: trip.timezone,
     status: "manual",
     providerUrl: input.providerUrl,
     ticketUrl: input.ticketUrl,
     venue: {
-      providerId: normalizeName(input.venueName),
+      providerId: normalizeArtistName(input.venueName),
       name: input.venueName,
       latitude: input.latitude,
       longitude: input.longitude,
@@ -51,7 +56,7 @@ export async function createManualEvent(input: {
     performers: input.performers.map((name) => ({ name })),
   };
 
-  const persisted = await persistNormalizedEvent(event, trip);
+  const persisted = await persistNormalizedEvent(event);
   const matchesCreated = await matchEventToArtists({
     eventId: persisted.event.id,
     event,
@@ -63,6 +68,9 @@ export async function createManualEvent(input: {
   await prisma.manualImport.create({
     data: {
       sourceNote: input.sourceNote,
+      eventId: persisted.event.id,
+      createdById: input.createdById ?? undefined,
+      payloadJson: input,
       eventsCreated: 1,
     },
   });

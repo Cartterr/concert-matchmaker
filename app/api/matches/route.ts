@@ -8,21 +8,31 @@ const patchSchema = z.object({
   status: z.nativeEnum(MatchStatus),
 });
 
+const querySchema = z.object({
+  catalogId: z.string().optional(),
+  tripId: z.string().optional(),
+  provider: z.string().optional(),
+  q: z.string().optional(),
+  minConfidence: z.coerce.number().int().min(0).max(100).optional(),
+  limit: z.coerce.number().int().positive().max(250).default(100),
+  status: z.nativeEnum(MatchStatus).optional(),
+});
+
 export async function GET(request: Request) {
   try {
     await requireApiUser();
     const url = new URL(request.url);
-    const statusParam = url.searchParams.get("status");
-    const status =
-      statusParam && statusParam in MatchStatus
-        ? MatchStatus[statusParam as keyof typeof MatchStatus]
-        : undefined;
-
-    const matches = await listRankedMatches({
+    const params = querySchema.parse({
       catalogId: url.searchParams.get("catalogId") ?? undefined,
-      status,
-      limit: Number(url.searchParams.get("limit") ?? 100),
+      tripId: url.searchParams.get("tripId") ?? undefined,
+      provider: url.searchParams.get("provider") ?? undefined,
+      q: url.searchParams.get("q") ?? undefined,
+      minConfidence: url.searchParams.get("minConfidence") ?? undefined,
+      limit: url.searchParams.get("limit") ?? undefined,
+      status: url.searchParams.get("status") ?? undefined,
     });
+
+    const matches = await listRankedMatches(params);
     return ok({ matches });
   } catch (error) {
     return handleApiError(error);
@@ -31,9 +41,9 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    await requireApiUser();
+    const user = await requireApiUser();
     const body = patchSchema.parse(await request.json());
-    const match = await reviewMatch(body);
+    const match = await reviewMatch({ ...body, reviewedBy: user.userId ?? user.name });
     return ok({ match });
   } catch (error) {
     return handleApiError(error);

@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 export type ProviderKey =
   | "jambase"
   | "ticketmaster"
@@ -54,7 +56,9 @@ export const providerDefinitions: Record<
     name: "Eventbrite",
     priority: 5,
     requiredEnv: ["EVENTBRITE_TOKEN"],
-    message: "Fallback source for lower-confidence self-published events.",
+    disabled: true,
+    message:
+      "Disabled in v1 because Eventbrite public event search is retired; use manual imports for gaps.",
   },
   songkick: {
     name: "Songkick",
@@ -115,6 +119,7 @@ export function isDatabaseConfigured() {
 
 export function isAuthConfigured() {
   return (
+    isDatabaseConfigured() &&
     hasEnv("AUTH_SECRET") &&
     (hasEnv("AUTH_URL") || hasEnv("NEXTAUTH_URL")) &&
     hasEnv("GITHUB_ID") &&
@@ -132,6 +137,7 @@ export function getGithubAllowlist() {
 export function isGithubIdentityAllowed(identity: {
   login?: string | null;
   email?: string | null;
+  githubId?: string | number | null;
 }) {
   const allowlist = getGithubAllowlist();
   if (allowlist.users.length === 0 && allowlist.emails.length === 0) {
@@ -140,9 +146,11 @@ export function isGithubIdentityAllowed(identity: {
 
   const login = identity.login?.toLowerCase();
   const email = identity.email?.toLowerCase();
+  const githubId = identity.githubId ? String(identity.githubId).toLowerCase() : null;
   return Boolean(
     (login && allowlist.users.includes(login)) ||
-      (email && allowlist.emails.includes(email)),
+      (email && allowlist.emails.includes(email)) ||
+      (githubId && allowlist.users.includes(githubId)),
   );
 }
 
@@ -154,11 +162,12 @@ export function isDevAuthBypassEnabled() {
 }
 
 export function validateScheduledSecret(headerValue: string | null) {
-  return Boolean(
-    process.env.SCHEDULED_SCAN_SECRET &&
-      headerValue &&
-      headerValue === process.env.SCHEDULED_SCAN_SECRET,
-  );
+  const secret = process.env.SCHEDULED_SCAN_SECRET;
+  if (!secret || !headerValue) return false;
+
+  const expected = Buffer.from(secret);
+  const actual = Buffer.from(headerValue);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 function csvEnv(name: string) {

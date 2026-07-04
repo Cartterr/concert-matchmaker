@@ -25,9 +25,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         profile && "login" in profile && typeof profile.login === "string"
           ? profile.login
           : null;
+      const githubId =
+        profile && "id" in profile && profile.id != null ? String(profile.id) : null;
       return isGithubIdentityAllowed({
         login,
         email: user.email,
+        githubId,
       });
     },
     async session({ session, user }) {

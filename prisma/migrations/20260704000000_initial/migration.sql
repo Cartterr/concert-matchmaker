@@ -42,7 +42,9 @@ CREATE TABLE "Session" (
     "userId" TEXT NOT NULL,
     "expires" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Session_pkey" PRIMARY KEY ("sessionToken")
 );
 
 -- CreateTable
@@ -95,6 +97,8 @@ CREATE TABLE "TripProfile" (
     "startsOn" TIMESTAMP(3) NOT NULL,
     "endsOn" TIMESTAMP(3) NOT NULL,
     "timezone" TEXT NOT NULL DEFAULT 'America/Los_Angeles',
+    "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "createdById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -163,6 +167,11 @@ CREATE TABLE "ProviderRun" (
     "id" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
     "status" TEXT NOT NULL,
+    "tripId" TEXT,
+    "catalogId" TEXT,
+    "startedById" TEXT,
+    "paramsJson" JSONB,
+    "errorClass" TEXT,
     "skippedReason" TEXT,
     "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completedAt" TIMESTAMP(3),
@@ -178,8 +187,12 @@ CREATE TABLE "Match" (
     "id" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
     "artistId" TEXT NOT NULL,
+    "tripId" TEXT NOT NULL,
+    "providerRunId" TEXT,
     "confidence" INTEGER NOT NULL,
     "status" "MatchStatus" NOT NULL DEFAULT 'PENDING',
+    "reviewedAt" TIMESTAMP(3),
+    "reviewedBy" TEXT,
     "reasons" JSONB NOT NULL,
     "sourceProvider" TEXT NOT NULL,
     "distanceMiles" DOUBLE PRECISION,
@@ -194,6 +207,9 @@ CREATE TABLE "ManualImport" (
     "id" TEXT NOT NULL,
     "filename" TEXT,
     "sourceNote" TEXT,
+    "eventId" TEXT,
+    "createdById" TEXT,
+    "payloadJson" JSONB,
     "eventsCreated" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -202,9 +218,6 @@ CREATE TABLE "ManualImport" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Session_sessionToken_key" ON "Session"("sessionToken");
 
 -- CreateIndex
 CREATE INDEX "ArtistCatalog_createdById_idx" ON "ArtistCatalog"("createdById");
@@ -217,6 +230,12 @@ CREATE INDEX "Artist_normalizedName_idx" ON "Artist"("normalizedName");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Artist_catalogId_normalizedName_key" ON "Artist"("catalogId", "normalizedName");
+
+-- CreateIndex
+CREATE INDEX "TripProfile_isActive_idx" ON "TripProfile"("isActive");
+
+-- CreateIndex
+CREATE INDEX "TripProfile_createdById_idx" ON "TripProfile"("createdById");
 
 -- CreateIndex
 CREATE INDEX "TripProfile_startsOn_endsOn_idx" ON "TripProfile"("startsOn", "endsOn");
@@ -246,7 +265,22 @@ CREATE INDEX "Performer_normalizedName_idx" ON "Performer"("normalizedName");
 CREATE UNIQUE INDEX "Performer_eventId_normalizedName_key" ON "Performer"("eventId", "normalizedName");
 
 -- CreateIndex
+CREATE INDEX "ProviderRun_tripId_startedAt_idx" ON "ProviderRun"("tripId", "startedAt");
+
+-- CreateIndex
+CREATE INDEX "ProviderRun_catalogId_startedAt_idx" ON "ProviderRun"("catalogId", "startedAt");
+
+-- CreateIndex
+CREATE INDEX "ProviderRun_status_startedAt_idx" ON "ProviderRun"("status", "startedAt");
+
+-- CreateIndex
 CREATE INDEX "ProviderRun_provider_startedAt_idx" ON "ProviderRun"("provider", "startedAt");
+
+-- CreateIndex
+CREATE INDEX "Match_tripId_status_confidence_idx" ON "Match"("tripId", "status", "confidence");
+
+-- CreateIndex
+CREATE INDEX "Match_providerRunId_idx" ON "Match"("providerRunId");
 
 -- CreateIndex
 CREATE INDEX "Match_confidence_idx" ON "Match"("confidence");
@@ -255,7 +289,13 @@ CREATE INDEX "Match_confidence_idx" ON "Match"("confidence");
 CREATE INDEX "Match_status_idx" ON "Match"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Match_eventId_artistId_key" ON "Match"("eventId", "artistId");
+CREATE UNIQUE INDEX "Match_eventId_artistId_tripId_key" ON "Match"("eventId", "artistId", "tripId");
+
+-- CreateIndex
+CREATE INDEX "ManualImport_eventId_idx" ON "ManualImport"("eventId");
+
+-- CreateIndex
+CREATE INDEX "ManualImport_createdById_idx" ON "ManualImport"("createdById");
 
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -270,13 +310,37 @@ ALTER TABLE "ArtistCatalog" ADD CONSTRAINT "ArtistCatalog_createdById_fkey" FORE
 ALTER TABLE "Artist" ADD CONSTRAINT "Artist_catalogId_fkey" FOREIGN KEY ("catalogId") REFERENCES "ArtistCatalog"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "TripProfile" ADD CONSTRAINT "TripProfile_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Event" ADD CONSTRAINT "Event_venueId_fkey" FOREIGN KEY ("venueId") REFERENCES "Venue"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Performer" ADD CONSTRAINT "Performer_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "ProviderRun" ADD CONSTRAINT "ProviderRun_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "TripProfile"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProviderRun" ADD CONSTRAINT "ProviderRun_catalogId_fkey" FOREIGN KEY ("catalogId") REFERENCES "ArtistCatalog"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProviderRun" ADD CONSTRAINT "ProviderRun_startedById_fkey" FOREIGN KEY ("startedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Match" ADD CONSTRAINT "Match_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Match" ADD CONSTRAINT "Match_artistId_fkey" FOREIGN KEY ("artistId") REFERENCES "Artist"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Match" ADD CONSTRAINT "Match_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "TripProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Match" ADD CONSTRAINT "Match_providerRunId_fkey" FOREIGN KEY ("providerRunId") REFERENCES "ProviderRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ManualImport" ADD CONSTRAINT "ManualImport_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ManualImport" ADD CONSTRAINT "ManualImport_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

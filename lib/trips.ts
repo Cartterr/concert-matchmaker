@@ -8,6 +8,7 @@ export const defaultTripProfile = {
   startsOn: new Date("2026-07-17T00:00:00-07:00"),
   endsOn: new Date("2026-07-24T23:59:59-07:00"),
   timezone: "America/Los_Angeles",
+  isActive: true,
 };
 
 export function dateOnly(value: Date) {

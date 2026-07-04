@@ -1,28 +1,48 @@
-const FEATURE_PATTERN =
-  /\b(feat\.?|featuring|ft\.?|with|x|vs\.?|versus)\b.+$/i;
-const PARENS_PATTERN = /\((feat\.?|featuring|ft\.?|with)[^)]+\)/gi;
+const EVENT_FEATURE_PARENS_PATTERN =
+  /\((feat\.?|featuring|ft\.?)[^)]+\)/gi;
+const EVENT_TRAILING_FEATURE_PATTERN = /\b(feat\.?|featuring|ft\.?)\b.+$/i;
+
+const transliterationMap: Record<string, string> = {
+  Æ: "AE",
+  æ: "ae",
+  Ð: "D",
+  ð: "d",
+  Đ: "D",
+  đ: "d",
+  Ł: "L",
+  ł: "l",
+  Ø: "O",
+  ø: "o",
+  Þ: "Th",
+  þ: "th",
+  Œ: "OE",
+  œ: "oe",
+  ß: "ss",
+};
 
 export function normalizeName(value: string) {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/&/g, " and ")
-    .replace(PARENS_PATTERN, " ")
-    .replace(FEATURE_PATTERN, " ")
-    .toLowerCase()
-    .replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\bthe\b/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
+  return normalizeArtistName(value);
+}
+
+export function normalizeArtistName(value: string) {
+  return normalizeBase(value, { removeLeadingThe: true });
+}
+
+export function normalizeEventTitle(value: string) {
+  return normalizeBase(
+    value
+      .replace(EVENT_FEATURE_PARENS_PATTERN, " ")
+      .replace(EVENT_TRAILING_FEATURE_PATTERN, " "),
+    { removeLeadingThe: true },
+  );
 }
 
 export function normalizeDedupePart(value: string | null | undefined) {
-  return normalizeName(value ?? "").replace(/\s+/g, "-") || "unknown";
+  return normalizeEventTitle(value ?? "").replace(/\s+/g, "-") || "unknown";
 }
 
 export function tokenSet(value: string) {
-  return new Set(normalizeName(value).split(" ").filter(Boolean));
+  return new Set(normalizeArtistName(value).split(" ").filter(Boolean));
 }
 
 export function diceTokenScore(a: string, b: string) {
@@ -36,6 +56,15 @@ export function diceTokenScore(a: string, b: string) {
   }
 
   return (2 * intersection) / (left.size + right.size);
+}
+
+export function splitCollaborationCandidates(value: string) {
+  const parts = value
+    .split(/\s+(?:x|with|vs\.?|versus)\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.length > 1 ? [value, ...parts] : [value];
 }
 
 export function buildProviderDedupeKey(input: {
@@ -64,4 +93,29 @@ export function buildProviderDedupeKey(input: {
 
 export function safeJsonText(value: unknown) {
   return JSON.stringify(value, null, 2);
+}
+
+function normalizeBase(value: string, options: { removeLeadingThe: boolean }) {
+  const rawLower = value.trim().toLocaleLowerCase();
+  const transliterated = value.replace(
+    /[ÆæÐðĐđŁłØøÞþŒœß]/g,
+    (char) => transliterationMap[char] ?? char,
+  );
+
+  let normalized = transliterated
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .toLocaleLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  if (options.removeLeadingThe && normalized.startsWith("the ")) {
+    const withoutThe = normalized.slice(4).trim();
+    if (withoutThe) normalized = withoutThe;
+  }
+
+  return normalized || rawLower;
 }

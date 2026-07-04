@@ -2,20 +2,37 @@ import { describe, expect, it } from "vitest";
 import {
   buildProviderDedupeKey,
   diceTokenScore,
+  normalizeEventTitle,
   normalizeName,
 } from "@/lib/normalize";
 
 describe("normalizeName", () => {
-  it("normalizes accents, punctuation, features, and leading articles", () => {
+  it("normalizes accents, punctuation, and leading articles", () => {
     expect(normalizeName("The María & The Machines (feat. Guest)")).toBe(
-      "maria and machines",
+      "maria and the machines feat guest",
     );
+  });
+
+  it("does not strip tokens that are legitimate artist-name words", () => {
+    expect(normalizeName("With Confidence")).toBe("with confidence");
+    expect(normalizeName("The The")).toBe("the");
+    expect(normalizeName("X Ambassadors")).toBe("x ambassadors");
+    expect(normalizeName("MØ")).toBe("mo");
+    expect(normalizeName("Röyksopp")).toBe("royksopp");
   });
 
   it("scores token overlap for guarded fuzzy matching", () => {
     expect(diceTokenScore("LCD Soundsystem", "LCD Soundsystem DJ Set")).toBeCloseTo(
       0.67,
       2,
+    );
+  });
+});
+
+describe("normalizeEventTitle", () => {
+  it("strips event-title feature annotations without changing artist names", () => {
+    expect(normalizeEventTitle("The María & The Machines (feat. Guest)")).toBe(
+      "maria and the machines",
     );
   });
 });

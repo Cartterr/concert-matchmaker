@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { auth } from "@/auth";
-import { isAuthConfigured, isDevAuthBypassEnabled } from "@/lib/env";
+import {
+  isAuthConfigured,
+  isDatabaseConfigured,
+  isDevAuthBypassEnabled,
+} from "@/lib/env";
 
 export class ApiError extends Error {
   constructor(
@@ -14,6 +19,10 @@ export class ApiError extends Error {
 export async function requireApiUser() {
   if (isDevAuthBypassEnabled()) {
     return { userId: null, name: "Local dev" };
+  }
+
+  if (!isDatabaseConfigured()) {
+    throw new ApiError("Database is not configured.", 503);
   }
 
   if (!isAuthConfigured()) {
@@ -40,9 +49,17 @@ export function handleApiError(error: unknown) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
 
+  if (error instanceof ZodError) {
+    return NextResponse.json(
+      { error: "Invalid request payload.", details: error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  console.error("Unhandled API error", error);
   return NextResponse.json(
     {
-      error: error instanceof Error ? error.message : "Unexpected server error.",
+      error: "Internal server error.",
     },
     { status: 500 },
   );
