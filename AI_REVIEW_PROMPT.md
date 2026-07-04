@@ -5,6 +5,33 @@ pre-production architecture, product, code quality, security, and UI/UX review.
 Do not provide generic advice. Inspect the repository deeply and return concrete,
 file-referenced issues and improvements.
 
+## Review-Only Mandate
+
+You must not implement anything. Do not edit files, create commits, generate
+patches, rewrite modules, run migrations, add dependencies, or provide a
+drop-in replacement implementation. Your job is to spot issues and describe
+exactly what should change, not to make the changes.
+
+Be extremely critical. Assume this repository is going through a hard
+pre-production gate and the goal is to uncover as many real defects,
+weaknesses, inconsistencies, missing requirements, edge cases, UX problems,
+provider/API risks, auth/security gaps, deployment risks, and maintainability
+issues as possible. Do not soften findings to be polite. Do not avoid pointing
+out structural problems because they are inconvenient. Prefer a precise,
+actionable critique over encouragement.
+
+For every recommended improvement, describe:
+
+- What is wrong now.
+- Where it appears in the codebase.
+- Why it matters.
+- What should be changed.
+- How to verify the change later.
+
+Do not solve the issue in code. At most, include very short pseudocode or API
+shape examples when needed to explain the recommendation. The final output must
+be a critical review and remediation plan, not an implementation.
+
 ## Objective
 
 This app should help a user import a Spotify-derived artist catalog, scan event
@@ -176,6 +203,12 @@ Prioritize real defects, missing production requirements, architectural risks,
 security gaps, data integrity risks, provider/API incompatibilities, auth issues,
 and frontend UX/design weaknesses.
 
+This is a defect-discovery task, not a coding task. Do not skip low-confidence
+concerns; label them as "needs verification" and explain how to verify them.
+If you find ten issues, return ten. If you find one hundred issues, return the
+important one hundred, grouped so they are readable. Be critical of the current
+implementation even when it appears to work locally.
+
 Do not stop at high-level comments. For each issue, include:
 
 - Severity: `P0`, `P1`, `P2`, or `P3`
@@ -186,6 +219,8 @@ Do not stop at high-level comments. For each issue, include:
 - Whether it blocks production deployment
 
 Also include a section of "Best Next PRs" with an ordered implementation plan.
+This plan should describe what future PRs should contain, but must not include
+actual file edits or complete replacement code.
 
 ## Specific Areas To Inspect
 
@@ -469,6 +504,10 @@ based on uncertain provider documentation, say exactly what needs verification.
 If you propose a UI redesign, make it concrete enough that another engineer can
 implement it without guessing.
 
+Do not include a patch, unified diff, complete replacement files, or "here is
+the implementation" section. The output should be all diagnosis, critique,
+recommendations, and sequencing.
+
 ## Additional Constraints
 
 - Do not ask for real credentials.
@@ -479,3 +518,5 @@ implement it without guessing.
 - Preserve MCP compatibility for Hermes/OpenClaw.
 - Favor resilient provider abstractions over one-off scripts.
 - Favor a sleek operational product interface over a marketing landing page.
+- Do not implement fixes. Do not output complete rewritten files. Do not mutate
+  the repository. Review only.
