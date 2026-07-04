@@ -1,0 +1,15 @@
+{
+  "artists": [
+    {
+      "name": "Sample Artist One",
+      "spotify_id": "spotify-artist-1",
+      "liked_track_count": 3,
+      "sample_tracks": ["Track A", "Track B"]
+    },
+    {
+      "name": "Sample Artist Two",
+      "spotify_id": "spotify-artist-2",
+      "liked_track_count": 1
+    }
+  ]
+}

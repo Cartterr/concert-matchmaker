@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  AMBIGUOUS
+}
+
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String?         @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  catalogs      ArtistCatalog[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model ArtistCatalog {
+  id          String   @id @default(cuid())
+  name        String
+  source      String   @default("manual")
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  artists     Artist[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+model Artist {
+  id              String          @id @default(cuid())
+  catalogId       String
+  catalog         ArtistCatalog   @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  spotifyId       String?
+  name            String
+  normalizedName  String
+  spotifyUrl      String?
+  likedTrackCount Int             @default(0)
+  sampleTracks    Json?
+  aliases         Json?
+  externalIds     Json?
+  matches         Match[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([catalogId, normalizedName])
+  @@index([spotifyId])
+  @@index([normalizedName])
+}
+
+model TripProfile {
+  id           String   @id @default(cuid())
+  name         String
+  locationName String
+  latitude     Float
+  longitude    Float
+  radiusMiles  Float    @default(12)
+  startsOn     DateTime
+  endsOn       DateTime
+  timezone     String   @default("America/Los_Angeles")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([startsOn, endsOn])
+}
+
+model Venue {
+  id             String   @id @default(cuid())
+  provider       String
+  providerId     String
+  name           String
+  normalizedName String
+  latitude       Float?
+  longitude      Float?
+  address        String?
+  city           String?
+  region         String?
+  country        String?
+  url            String?
+  events         Event[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([provider, providerId])
+  @@index([normalizedName])
+}
+
+model Event {
+  id             String      @id @default(cuid())
+  dedupeKey      String      @unique
+  title          String
+  normalizedTitle String
+  startAt        DateTime?
+  startLocal     String?
+  timezone       String?
+  status         String      @default("scheduled")
+  provider       String
+  providerId     String?
+  providerUrl    String?
+  ticketUrl      String?
+  rawPayloadRef  String?
+  venueId        String?
+  venue          Venue?      @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  performers     Performer[]
+  matches        Match[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([provider, providerId])
+  @@index([startAt])
+  @@index([normalizedTitle])
+}
+
+model Performer {
+  id             String   @id @default(cuid())
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name           String
+  normalizedName String
+  billing        String?
+  providerId     String?
+  externalIds    Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([eventId, normalizedName])
+  @@index([normalizedName])
+}
+
+model ProviderRun {
+  id             String   @id @default(cuid())
+  provider       String
+  status         String
+  skippedReason  String?
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  eventsFetched  Int      @default(0)
+  matchesCreated Int      @default(0)
+  message        String?
+
+  @@index([provider, startedAt])
+}
+
+model Match {
+  id             String      @id @default(cuid())
+  eventId        String
+  event          Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  artistId       String
+  artist         Artist      @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  confidence     Int
+  status         MatchStatus @default(PENDING)
+  reasons        Json
+  sourceProvider String
+  distanceMiles  Float?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([eventId, artistId])
+  @@index([confidence])
+  @@index([status])
+}
+
+model ManualImport {
+  id            String   @id @default(cuid())
+  filename      String?
+  sourceNote    String?
+  eventsCreated Int      @default(0)
+  createdAt     DateTime @default(now())
+}

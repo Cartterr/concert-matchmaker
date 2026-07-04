@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "concert-matchmaker": {
+      "command": "pnpm",
+      "args": ["--dir", "V:/dev/concert-matchmaker", "mcp"],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}
