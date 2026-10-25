@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Concert Matchmaker">
+  <rect width="160" height="160" rx="36" fill="#08080d"/>
+  <g fill="#c8f542">
+    <rect x="32" y="84" width="14" height="44" rx="4"/>
+    <rect x="53" y="52" width="14" height="76" rx="4"/>
+    <rect x="74" y="68" width="14" height="60" rx="4"/>
+    <rect x="95" y="36" width="14" height="92" rx="4"/>
+    <rect x="116" y="100" width="14" height="28" rx="4"/>
+  </g>
+</svg>

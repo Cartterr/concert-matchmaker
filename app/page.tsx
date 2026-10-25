@@ -36,14 +36,14 @@ export default async function DashboardPage() {
 
   if (access.canRead) {
     try {
-      const [trip, catalogs, artistCount, latestRun, matches] = await Promise.all([
+      const [trip, catalogs, artistCount, recentRuns, matches] = await Promise.all([
         prisma.tripProfile.findFirst({
           where: { isActive: true },
           orderBy: { startsOn: "asc" },
         }),
         prisma.artistCatalog.count(),
         prisma.artist.count(),
-        prisma.providerRun.findFirst({ orderBy: { startedAt: "desc" } }),
+        prisma.providerRun.findMany({ orderBy: { startedAt: "desc" }, take: 20 }),
         listRankedMatches({ limit: 8 }),
       ]);
 
@@ -52,9 +52,7 @@ export default async function DashboardPage() {
         tripWindow: formatTripWindow(trip ?? defaultTripProfile),
         catalogCount: catalogs,
         artistCount,
-        latestScan: latestRun
-          ? `${latestRun.provider} · ${latestRun.status} · ${latestRun.eventsFetched} events`
-          : "No scans",
+        latestScan: summarizeLatestScan(recentRuns),
         matches,
       };
     } catch (caught) {
@@ -141,4 +139,17 @@ export default async function DashboardPage() {
       ) : null}
     </AppShell>
   );
+}
+
+// One scan writes a run per provider; summarize every run from the latest scan.
+function summarizeLatestScan(
+  runs: Array<{ startedAt: Date; status: string; eventsFetched: number }>,
+) {
+  const latest = runs[0]?.startedAt.getTime();
+  if (latest === undefined) return "No scans";
+  const scan = runs.filter((run) => latest - run.startedAt.getTime() < 60_000);
+  const tried = scan.filter((run) => run.status !== "skipped");
+  const events = scan.reduce((sum, run) => sum + run.eventsFetched, 0);
+  const completed = tried.filter((run) => run.status === "completed").length;
+  return `${events} events · ${completed}/${tried.length} providers`;
 }
