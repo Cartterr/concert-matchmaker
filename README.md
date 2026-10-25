@@ -24,7 +24,7 @@
 ---
 
 <p align="center">
-  <img src="docs/screenshots/events.png" width="900" alt="The Events page: every music event in the trip window grouped by day, with thumbnails, categories, distance from the venue and one ticket button per provider">
+  <img src="docs/readme/events.png" width="900" alt="The Events page: every music event in the trip window grouped by day, with thumbnails, categories, distance from the venue and one ticket button per provider">
 </p>
 
 Concert Matchmaker reads the artists behind your Spotify Liked Songs and checks them against every event the ticketing sites list, for the exact days and the exact radius you'll be somewhere. It is event-first: it pulls the whole city's calendar, then asks which of those performers you already love.
@@ -45,16 +45,16 @@ Then open `/matches`.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/matches.png" alt="Ranked matches: liked artists with their Spotify photos, the show, venue, distance, confidence and ticket links"></td>
-    <td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard: active trip, catalog size, latest scan summary, provider health and top ranked matches"></td>
+    <td width="50%"><img src="docs/readme/matches.png" alt="Ranked matches: liked artists with their Spotify photos, the show, venue, distance, confidence and ticket links"></td>
+    <td width="50%"><img src="docs/readme/dashboard.png" alt="Dashboard: active trip, catalog size, latest scan summary, provider health and top ranked matches"></td>
   </tr>
   <tr>
     <td><strong>Matches</strong>: your artists, the show, how sure the match is, and where to buy.</td>
     <td><strong>Dashboard</strong>: trip, catalog, last scan and provider health at a glance.</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/trip-scan.png" alt="Trip scan: active trip details, the scan button, a manual event form and provider status"></td>
-    <td><img src="docs/screenshots/events.png" alt="Events: every event in the window, music and otherwise"></td>
+    <td><img src="docs/readme/trip-scan.png" alt="Trip scan: active trip details, the scan button, a manual event form and provider status"></td>
+    <td><img src="docs/readme/events.png" alt="Events: every event in the window, music and otherwise"></td>
   </tr>
   <tr>
     <td><strong>Trip Scan</strong>: run a scan, or add a show the APIs don't know about.</td>
