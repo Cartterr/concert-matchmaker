@@ -17,8 +17,8 @@
 </p>
 
 <p align="center">
-  <strong>2,914 liked songs &middot; 2,171 artists &middot; 482 listings scanned &middot; 218 events &middot; 4 shows worth leaving the hotel for</strong><br>
-  <sub>One real run: SC26 in Chicago, Nov 15–20 2026, 20 miles around McCormick Place, Ticketmaster + SeatGeek. Every performer and every name in every event title checked against every artist in the Spotify library.</sub>
+  <strong>2,914 liked songs &middot; 2,171 artists &middot; 581 listings scanned &middot; 271 events &middot; 6 shows worth leaving the hotel for</strong><br>
+  <sub>One real run: SC26 in Chicago, Nov 15–20 2026, 20 miles around McCormick Place, Ticketmaster + SeatGeek + JamBase. Every performer and every name in every event title checked against every artist in the Spotify library.</sub>
 </p>
 
 ---
@@ -143,8 +143,8 @@ Tests cover normalization, dedupe keys, distance math, import parsing, match con
 
 ## FAQ
 
-**Why did my scan find only four matches?**
-Because the scan read every lineup and your taste is that specific. Add a JamBase key for club shows and the number moves.
+**Why did my scan find so few matches?**
+Because the scan read every lineup and your taste is that specific. Ticketmaster and SeatGeek alone found 4 shows for the Chicago run; adding JamBase found 2 more, both at the Empty Bottle. Club shows live there.
 
 **Does it buy tickets?**
 No. It finds them. The checkout is still on you.

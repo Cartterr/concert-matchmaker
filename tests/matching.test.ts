@@ -36,4 +36,8 @@ describe("scorePerformerArtist", () => {
       status: MatchStatus.AMBIGUOUS,
     });
   });
+
+  it("does not let a repeated-word name match any act sharing that word", () => {
+    expect(scorePerformerArtist({ name: "Sludge Mother" }, { name: "Mother Mother" })).toBeNull();
+  });
 });

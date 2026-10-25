@@ -84,10 +84,14 @@ export function scorePerformerArtist(
   }
 
   const fuzzy = diceTokenScore(performerName, artistName);
+  // Needs two distinct words: "Mother Mother" collapses to {mother}, which every
+  // "... Mother" act would contain.
+  const artistTokens = tokenSet(artistName);
   const subsetDescriptorMatch =
     performerName.length >= 8 &&
     artistName.length >= 8 &&
-    allTokensIncluded(tokenSet(artistName), tokenSet(performerName));
+    artistTokens.size >= 2 &&
+    allTokensIncluded(artistTokens, tokenSet(performerName));
 
   if (
     (fuzzy >= 0.92 || subsetDescriptorMatch) &&

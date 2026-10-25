@@ -5,6 +5,7 @@ import {
   type ProviderKey,
 } from "@/lib/env";
 import { normalizeArtistName } from "@/lib/normalize";
+import { parseLocalDateTimeInZone } from "@/lib/time";
 import { fetchJson, firstUrl, isoWithoutMs, numberFrom, textFrom } from "./http";
 import type {
   EventProviderAdapter,
@@ -110,22 +111,28 @@ async function scanJamBase(trip: ProviderTrip): Promise<ProviderScanResult> {
   url.searchParams.set("geoRadiusUnits", "mi");
   url.searchParams.set("eventDateFrom", trip.startsOn.toISOString().slice(0, 10));
   url.searchParams.set("eventDateTo", trip.endsOn.toISOString().slice(0, 10));
-  // ponytail: first page only; follow pagination.nextPage once a live JamBase key exists to test it.
+  url.searchParams.set("perPage", "100");
 
-  const payload = await fetchJson<UnknownRecord>(url, {
-    headers: {
-      Authorization: `Bearer ${process.env.JAMBASE_API_KEY}`,
-    },
-  });
-  const events = firstArrayAt(payload, [["events"], ["results"], ["data"]]);
-  if (events.length === 0 && !hasKnownArray(payload, ["events", "results", "data"])) {
-    throw new Error("JamBase response did not include an events array.");
+  const events: unknown[] = [];
+  for (let page = 1; page <= 10; page += 1) {
+    url.searchParams.set("page", String(page));
+    const payload = await fetchJson<UnknownRecord>(url, {
+      headers: {
+        Authorization: `Bearer ${process.env.JAMBASE_API_KEY}`,
+      },
+    });
+    const pageEvents = firstArrayAt(payload, [["events"], ["results"], ["data"]]);
+    if (pageEvents.length === 0 && !hasKnownArray(payload, ["events", "results", "data"])) {
+      throw new Error("JamBase response did not include an events array.");
+    }
+    events.push(...pageEvents);
+    const totalPages = numberFrom(path(payload, ["pagination", "totalPages"])) ?? page;
+    if (page >= totalPages || pageEvents.length === 0) break;
   }
 
-  return {
-    provider: "jambase",
-    events: events.map(mapJamBaseEvent).filter(isEvent),
-  };
+  const mapped = events.map(mapJamBaseEvent).filter(isEvent);
+  await fillImagesFromTicketmaster(mapped);
+  return { provider: "jambase", events: mapped };
 }
 
 async function scanSeatGeek(trip: ProviderTrip): Promise<ProviderScanResult> {
@@ -157,8 +164,9 @@ async function scanSeatGeek(trip: ProviderTrip): Promise<ProviderScanResult> {
   return { provider: "seatgeek", events: mapped };
 }
 
-// SeatGeek's API sends no images; borrow the headliner's picture from
-// Ticketmaster's attraction catalog when the names match exactly.
+// SeatGeek sends no images and JamBase's can't be embedded; borrow the
+// headliner's picture from Ticketmaster's attraction catalog when the names
+// match exactly.
 async function fillImagesFromTicketmaster(events: NormalizedProviderEvent[]) {
   if (!process.env.TICKETMASTER_API_KEY) return;
   const cache = new Map<string, string | undefined>();
@@ -270,7 +278,7 @@ function mapTicketmasterEvent(value: unknown): NormalizedProviderEvent | null {
   };
 }
 
-function mapJamBaseEvent(value: unknown): NormalizedProviderEvent | null {
+export function mapJamBaseEvent(value: unknown): NormalizedProviderEvent | null {
   const event = asRecord(value);
   if (!event) return null;
 
@@ -279,24 +287,36 @@ function mapJamBaseEvent(value: unknown): NormalizedProviderEvent | null {
   if (!title || !venue) return null;
 
   const performers = [
+    ...arrayAt(event, ["performer"]),
     ...arrayAt(event, ["performers"]),
     ...arrayAt(event, ["performances"]).map((performance) =>
       asRecord(performance.artist) ?? performance,
     ),
   ];
+  const genre = textFrom(arrayAt(asRecord(performers[0]) ?? {}, ["genre"])[0]);
+  const offers = arrayAt(event, ["offers"]).map(asRecord);
+  const offer = offers.find((item) => item?.category === "ticketingLinkPrimary") ?? offers[0];
+  // JamBase startDate is venue-local with no offset; the zone sits on the venue address.
+  const startLocal = textFrom(event.startDate) ?? textFrom(event.date);
+  const timezone =
+    textFrom(path(venue, ["address", "x-timezone"])) ?? textFrom(event.timezone);
 
   return {
     provider: "jambase",
     providerId: textFrom(event.id) ?? textFrom(event.identifier),
     title,
-    category: textFrom(event["@type"]) ?? "Concert",
-    imageUrl: textFrom(event.image),
-    startAt: parseDate(event.startDate ?? event.date),
-    startLocal: textFrom(event.startDateLocal) ?? textFrom(event.date),
-    timezone: textFrom(event.timezone),
-    status: textFrom(event.status) ?? "scheduled",
+    // event.image is behind JamBase's bot challenge and can't be embedded; the
+    // scan borrows a Ticketmaster picture instead.
+    category: `Music · ${genre ?? textFrom(event["@type"])?.toLowerCase() ?? "concert"}`,
+    startAt:
+      startLocal && timezone
+        ? parseLocalDateTimeInZone(startLocal, timezone)
+        : parseDate(startLocal),
+    startLocal,
+    timezone,
+    status: textFrom(event.eventStatus) ?? textFrom(event.status) ?? "scheduled",
     providerUrl: textFrom(event.url) ?? firstUrl(event.sameAs),
-    ticketUrl: textFrom(event.ticketUrl) ?? firstUrl(event.offers),
+    ticketUrl: textFrom(event.ticketUrl) ?? textFrom(offer?.url) ?? firstUrl(event.offers),
     venue: mapGenericVenue(venue),
     performers: performers.map(mapGenericPerformer).filter(isPerformer),
   };
@@ -422,11 +442,20 @@ function mapGenericVenue(venue: UnknownRecord): NormalizedVenue {
     address:
       textFrom(venue.address) ??
       textFrom(path(venue, ["address", "line1"])) ??
+      textFrom(path(venue, ["address", "streetAddress"])) ??
       textFrom(path(venue, ["address", "localized_address_display"])),
-    city: textFrom(venue.city) ?? textFrom(path(venue, ["address", "city"])),
-    region: textFrom(venue.region) ?? textFrom(path(venue, ["address", "region"])),
+    city:
+      textFrom(venue.city) ??
+      textFrom(path(venue, ["address", "city"])) ??
+      textFrom(path(venue, ["address", "addressLocality"])),
+    region:
+      textFrom(venue.region) ??
+      textFrom(path(venue, ["address", "region"])) ??
+      textFrom(path(venue, ["address", "addressRegion", "alternateName"])),
     country:
-      textFrom(venue.country) ?? textFrom(path(venue, ["address", "country"])),
+      textFrom(venue.country) ??
+      textFrom(path(venue, ["address", "country"])) ??
+      textFrom(path(venue, ["address", "addressCountry", "identifier"])),
     url: textFrom(venue.url),
   };
 }
