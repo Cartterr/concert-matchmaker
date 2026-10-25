@@ -2,12 +2,13 @@ import { Filter } from "lucide-react";
 import type { ProviderKey } from "@/lib/env";
 
 const statusOptions = ["PENDING", "AMBIGUOUS", "ACCEPTED", "REJECTED"];
-const providerOptions: Array<ProviderKey | "manual"> = [
+const providerOptions: Array<ProviderKey | "manual" | "manual-confirmed"> = [
   "jambase",
   "ticketmaster",
   "seatgeek",
   "predicthq",
   "manual",
+  "manual-confirmed",
 ];
 
 export type MatchFilterValues = {
@@ -19,38 +20,38 @@ export type MatchFilterValues = {
 
 export function MatchFilters({ values }: { values: MatchFilterValues }) {
   return (
-    <form className="rounded-lg border border-border bg-panel p-4">
+    <form className="panel p-4">
       <div className="grid gap-3 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
-        <label className="text-sm font-medium">
+        <label className="microlabel">
           Search
           <input
             name="q"
             defaultValue={values.q ?? ""}
-            placeholder="Artist, event, venue"
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
+            placeholder="artist, event, venue…"
+            className="input font-sans normal-case tracking-normal"
           />
         </label>
-        <label className="text-sm font-medium">
+        <label className="microlabel">
           Status
           <select
             name="status"
             defaultValue={values.status ?? ""}
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border bg-panel px-3"
+            className="input font-sans normal-case tracking-normal"
           >
             <option value="">All</option>
             {statusOptions.map((status) => (
               <option key={status} value={status}>
-                {status}
+                {status.toLowerCase()}
               </option>
             ))}
           </select>
         </label>
-        <label className="text-sm font-medium">
+        <label className="microlabel">
           Provider
           <select
             name="provider"
             defaultValue={values.provider ?? ""}
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border bg-panel px-3"
+            className="input font-sans normal-case tracking-normal"
           >
             <option value="">All</option>
             {providerOptions.map((provider) => (
@@ -60,7 +61,7 @@ export function MatchFilters({ values }: { values: MatchFilterValues }) {
             ))}
           </select>
         </label>
-        <label className="text-sm font-medium">
+        <label className="microlabel">
           Min confidence
           <input
             name="minConfidence"
@@ -68,13 +69,10 @@ export function MatchFilters({ values }: { values: MatchFilterValues }) {
             min="0"
             max="100"
             defaultValue={values.minConfidence ?? ""}
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
+            className="input font-sans normal-case tracking-normal"
           />
         </label>
-        <button
-          type="submit"
-          className="focus-ring mt-7 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-sidebar px-4 text-sm font-medium text-sidebar-foreground"
-        >
+        <button type="submit" className="btn btn-ghost mt-[26px] h-10">
           <Filter className="size-4" aria-hidden="true" />
           Apply
         </button>

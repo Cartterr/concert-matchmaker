@@ -48,6 +48,7 @@ function toArtistCreateInput(artist: ImportedArtist) {
     normalizedName: artist.normalizedName,
     spotifyId: artist.spotifyId,
     spotifyUrl: artist.spotifyUrl,
+    imageUrl: artist.imageUrl,
     likedTrackCount: artist.likedTrackCount,
     sampleTracks: artist.sampleTracks,
     aliases: artist.aliases,

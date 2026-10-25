@@ -51,31 +51,54 @@ export default async function ImportPage() {
 
       {access.canRead ? (
         <>
-          <div className="mt-6">
+          <div className="mt-2">
+            <p className="kicker">{"// catalog intake"}</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight">Import</h1>
+          </div>
+
+          <div className="mt-5">
             <ImportForm />
           </div>
 
-          <section className="mt-6 rounded-lg border border-border bg-panel">
+          <section className="panel mt-6 overflow-hidden">
             <div className="border-b border-border px-5 py-4">
-              <h2 className="text-base font-semibold">Recent catalogs</h2>
+              <p className="microlabel">history</p>
+              <h2 className="mt-1 text-base font-semibold tracking-tight">
+                Recent catalogs
+              </h2>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-border text-sm">
-                <thead className="bg-surface text-left text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                <thead className="table-head">
                   <tr>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Source</th>
-                    <th className="px-4 py-3">Artists</th>
-                    <th className="px-4 py-3">Created</th>
+                    <th scope="col" className="px-4 py-3">
+                      Name
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Source
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Artists
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Created
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {catalogs.map((catalog) => (
-                    <tr key={catalog.id}>
-                      <td className="px-4 py-3 font-medium">{catalog.name}</td>
-                      <td className="px-4 py-3">{catalog.source}</td>
-                      <td className="px-4 py-3">{catalog._count.artists}</td>
-                      <td className="px-4 py-3">
+                    <tr
+                      key={catalog.id}
+                      className="transition-colors hover:bg-panel-raised"
+                    >
+                      <td className="px-4 py-3 font-semibold">{catalog.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {catalog.source}
+                      </td>
+                      <td className="px-4 py-3 font-mono tabular-nums text-accent">
+                        {catalog._count.artists.toLocaleString("en-US")}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                         {catalog.createdAt.toLocaleDateString("en-US")}
                       </td>
                     </tr>

@@ -9,16 +9,27 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   return (
-    <div className="grid min-h-screen place-items-center bg-background px-4 text-foreground">
-      <section className="w-full max-w-lg rounded-lg border border-border bg-panel p-6">
-        <h1 className="text-lg font-semibold">Something failed</h1>
+    <div className="grid min-h-screen place-items-center px-4 text-foreground">
+      <section className="panel w-full max-w-lg p-8 text-center">
+        <div className="eq eq--muted mx-auto w-fit" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <p className="kicker mt-5">{"// signal lost"}</p>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight">
+          Something failed
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          The page could not finish loading. Server logs include the detailed error.
+          The page could not finish loading. Server logs include the detailed
+          error.
         </p>
         <button
           type="button"
           onClick={reset}
-          className="focus-ring mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-sidebar px-4 text-sm font-medium text-sidebar-foreground"
+          className="btn btn-accent mt-6"
         >
           <RotateCcw className="size-4" aria-hidden="true" />
           Retry

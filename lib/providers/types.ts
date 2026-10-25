@@ -36,6 +36,8 @@ export type NormalizedProviderEvent = {
   provider: EventSourceKey;
   providerId?: string;
   title: string;
+  category?: string;
+  imageUrl?: string;
   startAt?: Date;
   startLocal?: string;
   timezone?: string;

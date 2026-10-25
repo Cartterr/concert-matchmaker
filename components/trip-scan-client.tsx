@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Radar } from "lucide-react";
 import { apiFetchJson } from "@/lib/client-api";
+import { cn } from "@/lib/ui";
 
 export function TripScanClient({
   tripId,
@@ -43,40 +44,53 @@ export function TripScanClient({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-panel p-5">
+    <div className={cn("panel p-5", pending && "scan-sweep border-accent/30")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold">Run event-first scan</h2>
+          <h2 className="text-base font-semibold tracking-tight">
+            Run event-first scan
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Scans configured providers by date/radius, then matches performers to
-            the selected catalog.
+            Scans configured providers by date/radius, then matches performers
+            to the selected catalog.
           </p>
         </div>
         <button
           type="button"
           onClick={scan}
           disabled={pending || !catalogId}
-          className="focus-ring inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground disabled:opacity-60"
+          className="btn btn-accent"
         >
-          <Radar className="size-4" aria-hidden="true" />
-          {pending ? "Scanning" : "Scan"}
+          <Radar
+            className={cn("size-4", pending && "animate-spin [animation-duration:1.8s]")}
+            aria-hidden="true"
+          />
+          {pending ? "Scanning…" : "Scan"}
         </button>
       </div>
       {!catalogId ? (
-        <div className="mt-4 text-sm text-warning">
-          Import an artist catalog before running a scan.
+        <div className="mt-4 font-mono text-xs text-warning">
+          » Import an artist catalog before running a scan.
+        </div>
+      ) : null}
+      {pending ? (
+        <div
+          role="status"
+          className="mt-4 font-mono text-xs text-accent"
+          aria-live="polite"
+        >
+          » sweeping providers · normalizing events · scoring performers
         </div>
       ) : null}
       {message ? (
         <div
           role={messageTone === "error" ? "alert" : "status"}
-          className={
-            messageTone === "error"
-              ? "mt-4 text-sm text-danger"
-              : "mt-4 text-sm text-muted-foreground"
-          }
+          className={cn(
+            "mt-4 font-mono text-xs",
+            messageTone === "error" ? "text-danger" : "text-accent",
+          )}
         >
-          {message}
+          » {message}
         </div>
       ) : null}
     </div>

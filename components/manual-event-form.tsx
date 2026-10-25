@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { apiFetchJson } from "@/lib/client-api";
+import { cn } from "@/lib/ui";
 
 export function ManualEventForm({
   tripId,
@@ -68,16 +69,15 @@ export function ManualEventForm({
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="rounded-lg border border-border bg-panel p-5"
-    >
+    <form onSubmit={submit} className="panel p-5">
       <div className="flex items-start gap-3">
-        <div className="grid size-10 place-items-center rounded-md bg-muted">
+        <div className="grid size-10 place-items-center rounded-md border border-magenta/30 bg-magenta/10 text-magenta">
           <Plus className="size-5" aria-hidden="true" />
         </div>
         <div>
-          <h2 className="text-base font-semibold">Manual event fallback</h2>
+          <h2 className="text-base font-semibold tracking-tight">
+            Manual event fallback
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Add DICE, RA, venue, or platform gaps without scraping.
           </p>
@@ -86,34 +86,22 @@ export function ManualEventForm({
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <label className="text-sm font-medium">
           Event title
-          <input
-            name="title"
-            required
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
-          />
+          <input name="title" required className="input" />
         </label>
         <label className="text-sm font-medium">
           Start time
-          <input
-            name="startAt"
-            type="datetime-local"
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
-          />
+          <input name="startAt" type="datetime-local" className="input" />
         </label>
         <label className="text-sm font-medium">
           Venue
-          <input
-            name="venueName"
-            required
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
-          />
+          <input name="venueName" required className="input" />
         </label>
         <label className="text-sm font-medium">
           Performers
           <input
             name="performers"
             placeholder="Artist One, Artist Two"
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
+            className="input"
           />
         </label>
         <label className="text-sm font-medium">
@@ -123,7 +111,7 @@ export function ManualEventForm({
             type="number"
             step="any"
             placeholder="34.0407"
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
+            className="input"
           />
         </label>
         <label className="text-sm font-medium">
@@ -133,24 +121,16 @@ export function ManualEventForm({
             type="number"
             step="any"
             placeholder="-118.2690"
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
+            className="input"
           />
         </label>
         <label className="text-sm font-medium">
           Provider URL
-          <input
-            name="providerUrl"
-            type="url"
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
-          />
+          <input name="providerUrl" type="url" className="input" />
         </label>
         <label className="text-sm font-medium">
           Ticket URL
-          <input
-            name="ticketUrl"
-            type="url"
-            className="focus-ring mt-2 h-10 w-full rounded-md border border-border px-3"
-          />
+          <input name="ticketUrl" type="url" className="input" />
         </label>
       </div>
       <label className="mt-4 block text-sm font-medium">
@@ -158,28 +138,27 @@ export function ManualEventForm({
         <textarea
           name="sourceNote"
           rows={3}
-          className="focus-ring mt-2 w-full rounded-md border border-border px-3 py-2"
+          className="input h-auto py-2"
         />
       </label>
       <div className="mt-5 flex items-center gap-3">
         <button
           type="submit"
           disabled={pending || !catalogId}
-          className="focus-ring inline-flex h-10 items-center gap-2 rounded-md bg-sidebar px-4 text-sm font-medium text-sidebar-foreground disabled:opacity-60"
+          className="btn btn-ghost"
         >
           <Plus className="size-4" aria-hidden="true" />
-          {pending ? "Saving" : "Add event"}
+          {pending ? "Saving…" : "Add event"}
         </button>
         {message ? (
           <span
             role={messageTone === "error" ? "alert" : "status"}
-            className={
-              messageTone === "error"
-                ? "text-sm text-danger"
-                : "text-sm text-muted-foreground"
-            }
+            className={cn(
+              "font-mono text-xs",
+              messageTone === "error" ? "text-danger" : "text-accent",
+            )}
           >
-            {message}
+            » {message}
           </span>
         ) : null}
       </div>

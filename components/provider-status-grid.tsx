@@ -1,43 +1,61 @@
-import { Ban, CheckCircle2, CircleAlert } from "lucide-react";
 import type { ProviderHealth } from "@/lib/env";
+import { cn } from "@/lib/ui";
 
-const iconByStatus = {
-  ready: CheckCircle2,
-  missing_credentials: CircleAlert,
-  disabled: Ban,
+const statusMeta: Record<
+  ProviderHealth["status"],
+  { label: string; dot: string; badge: string }
+> = {
+  ready: {
+    label: "ready",
+    dot: "bg-accent status-dot--pulse",
+    badge: "border-accent/30 bg-accent/10 text-accent",
+  },
+  missing_credentials: {
+    label: "skipped",
+    dot: "bg-warning",
+    badge: "border-warning/30 bg-warning/10 text-warning",
+  },
+  disabled: {
+    label: "off",
+    dot: "bg-faint",
+    badge: "border-border bg-muted text-muted-foreground",
+  },
 };
 
 export function ProviderStatusGrid({ providers }: { providers: ProviderHealth[] }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
       {providers.map((provider) => {
-        const Icon = iconByStatus[provider.status];
+        const meta = statusMeta[provider.status];
         return (
-          <div
-            key={provider.key}
-            className="rounded-lg border border-border bg-panel p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold">{provider.name}</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Priority {provider.priority}
-                </p>
+          <div key={provider.key} className="panel panel-hover p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className={cn("status-dot", meta.dot)} aria-hidden="true" />
+                <div>
+                  <h3 className="text-sm font-semibold">{provider.name}</h3>
+                  <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
+                    p{provider.priority} · {provider.key}
+                  </p>
+                </div>
               </div>
-              <Icon
-                className={
-                  provider.status === "ready"
-                    ? "size-5 text-success"
-                    : provider.status === "disabled"
-                      ? "size-5 text-muted-foreground"
-                      : "size-5 text-warning"
-                }
-                aria-hidden="true"
-              />
+              <span className={cn("badge", meta.badge)}>{meta.label}</span>
             </div>
             <p className="mt-3 min-h-10 text-sm text-muted-foreground">
               {provider.message}
             </p>
+            {provider.status === "missing_credentials" ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {provider.requiredEnv.map((envName) => (
+                  <code
+                    key={envName}
+                    className="rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-warning"
+                  >
+                    {envName}
+                  </code>
+                ))}
+              </div>
+            ) : null}
           </div>
         );
       })}

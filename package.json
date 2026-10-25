@@ -16,6 +16,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
+    "artists:images": "tsx scripts/backfill-artist-images.ts",
     "mcp": "tsx scripts/mcp-server.ts"
   },
   "dependencies": {

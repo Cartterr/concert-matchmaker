@@ -56,9 +56,12 @@ export default async function MatchesPage({
       ) : null}
 
       {access.canRead ? (
-        <section className="mt-6 space-y-4">
+        <section className="mt-2 space-y-4">
           <div>
-            <h1 className="text-lg font-semibold">Ranked matches</h1>
+            <p className="kicker">{"// review queue"}</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight">
+              Ranked matches
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Accept, reject, or keep ambiguous matches for manual review.
             </p>

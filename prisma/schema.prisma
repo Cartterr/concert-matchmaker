@@ -90,6 +90,7 @@ model Artist {
   name            String
   normalizedName  String
   spotifyUrl      String?
+  imageUrl        String?
   likedTrackCount Int             @default(0)
   sampleTracks    Json?
   aliases         Json?
@@ -152,6 +153,8 @@ model Event {
   dedupeKey      String      @unique
   title          String
   normalizedTitle String
+  category       String?
+  imageUrl       String?
   startAt        DateTime?
   startLocal     String?
   timezone       String?

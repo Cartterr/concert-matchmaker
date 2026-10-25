@@ -83,7 +83,14 @@ export default async function DashboardPage() {
 
       {access.canRead ? (
         <>
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-2">
+            <p className="kicker">{"// overview"}</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight">
+              Dashboard
+            </h1>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Active trip"
               value={data.tripName}
@@ -106,10 +113,13 @@ export default async function DashboardPage() {
             />
           </div>
 
-          <section className="mt-6">
+          <section className="mt-8">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold">Provider health</h2>
+                <p className="microlabel">providers</p>
+                <h2 className="mt-1 text-base font-semibold tracking-tight">
+                  Provider health
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Missing keys skip cleanly; disabled providers remain visible.
                 </p>
@@ -118,9 +128,12 @@ export default async function DashboardPage() {
             <ProviderStatusGrid providers={providers} />
           </section>
 
-          <section className="mt-6">
+          <section className="mt-8">
             <div className="mb-3">
-              <h2 className="text-base font-semibold">Top ranked matches</h2>
+              <p className="microlabel">signal</p>
+              <h2 className="mt-1 text-base font-semibold tracking-tight">
+                Top ranked matches
+              </h2>
             </div>
             <MatchTable matches={data.matches} showReview={false} />
           </section>

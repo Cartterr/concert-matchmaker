@@ -8,6 +8,7 @@ import {
   normalizeEventTitle,
 } from "@/lib/normalize";
 import { getAdapterHealth, getProviderAdapters } from "@/lib/providers";
+import { formatDateInZone } from "@/lib/time";
 import type {
   EventSourceKey,
   NormalizedPerformer,
@@ -197,6 +198,8 @@ export async function persistNormalizedEvent(event: NormalizedProviderEvent) {
       dedupeKey,
       title: event.title,
       normalizedTitle: normalizeEventTitle(event.title),
+      category: event.category,
+      imageUrl: event.imageUrl,
       startAt: event.startAt,
       startLocal: event.startLocal,
       timezone: event.timezone,
@@ -211,6 +214,8 @@ export async function persistNormalizedEvent(event: NormalizedProviderEvent) {
     update: {
       title: event.title,
       normalizedTitle: normalizeEventTitle(event.title),
+      category: event.category,
+      imageUrl: event.imageUrl,
       startAt: event.startAt,
       startLocal: event.startLocal,
       timezone: event.timezone,
@@ -392,6 +397,138 @@ export async function listRankedMatches(input: {
     ],
     take: Math.min(input.limit ?? 100, 250),
   });
+}
+
+export async function listTripEvents(input: { trip: TripProfile; q?: string }) {
+  const query = input.q?.trim();
+  const events = await prisma.event.findMany({
+    where: {
+      OR: [
+        { startAt: { gte: input.trip.startsOn, lte: input.trip.endsOn } },
+        { startAt: null },
+      ],
+      AND: query
+        ? [
+            {
+              OR: [
+                { title: { contains: query, mode: "insensitive" } },
+                { category: { contains: query, mode: "insensitive" } },
+                { venue: { name: { contains: query, mode: "insensitive" } } },
+                {
+                  performers: {
+                    some: { name: { contains: query, mode: "insensitive" } },
+                  },
+                },
+              ],
+            },
+          ]
+        : undefined,
+    },
+    include: {
+      venue: true,
+      matches: { where: { tripId: input.trip.id }, include: { artist: true } },
+    },
+    orderBy: [{ startAt: { sort: "asc", nulls: "last" } }, { title: "asc" }],
+  });
+
+  type Listing = (typeof events)[number] & {
+    distanceMiles: number | null;
+    times: Date[];
+    sources: Array<{ provider: string; url: string | null }>;
+  };
+
+  // Timed-entry exhibits and multi-show nights come back as one event per slot;
+  // fold them into one row per provider, title, venue and local day.
+  const rows = new Map<string, Listing>();
+  for (const event of events) {
+    const point = venuePoint(event.venue);
+    const distance = point
+      ? distanceMiles(
+          { latitude: input.trip.latitude, longitude: input.trip.longitude },
+          point,
+        )
+      : null;
+    if (distance !== null && distance > input.trip.radiusMiles * RADIUS_TOLERANCE) {
+      continue;
+    }
+
+    const day = event.startAt
+      ? formatDateInZone(event.startAt, input.trip.timezone)
+      : event.id;
+    const key = [event.provider, event.normalizedTitle, event.venueId, day].join("|");
+    const row = rows.get(key);
+    if (row) {
+      if (event.startAt) row.times.push(event.startAt);
+      addMatches(row, event.matches);
+      continue;
+    }
+    rows.set(key, {
+      ...event,
+      distanceMiles: distance,
+      times: event.startAt ? [event.startAt] : [],
+      sources: [{ provider: event.provider, url: event.ticketUrl ?? event.providerUrl }],
+    });
+  }
+
+  // The same show is often listed by several providers under slightly different
+  // titles and venue names; fold rows that share a start time at the same spot.
+  const merged: Listing[] = [];
+  for (const row of rows.values()) {
+    const twin = merged.find((kept) => isSameShow(kept, row));
+    if (!twin) {
+      merged.push(row);
+      continue;
+    }
+    twin.sources.push(...row.sources);
+    if (row.title.length > twin.title.length) twin.title = row.title;
+    twin.category ??= row.category;
+    twin.imageUrl ??= row.imageUrl;
+    for (const time of row.times) {
+      if (!twin.times.some((kept) => kept.getTime() === time.getTime())) {
+        twin.times.push(time);
+      }
+    }
+    twin.times.sort((a, b) => a.getTime() - b.getTime());
+    addMatches(twin, row.matches);
+  }
+  return merged;
+}
+
+const SAME_VENUE_MILES = 0.25;
+
+type VenueSpot = { latitude: number | null; longitude: number | null };
+
+function venuePoint(venue: VenueSpot | null) {
+  return venue?.latitude != null && venue.longitude != null
+    ? { latitude: venue.latitude, longitude: venue.longitude }
+    : null;
+}
+
+function addMatches<T extends { artistId: string }>(row: { matches: T[] }, matches: T[]) {
+  for (const match of matches) {
+    if (!row.matches.some((kept) => kept.artistId === match.artistId)) {
+      row.matches.push(match);
+    }
+  }
+}
+
+export function isSameShow(
+  kept: { times: Date[]; venue: VenueSpot | null; sources: Array<{ provider: string }> },
+  row: { times: Date[]; venue: VenueSpot | null; sources: Array<{ provider: string }> },
+) {
+  const a = venuePoint(kept.venue);
+  const b = venuePoint(row.venue);
+  return Boolean(
+    a &&
+      b &&
+      distanceMiles(a, b) < SAME_VENUE_MILES &&
+      !kept.sources.some((source) =>
+        row.sources.some((other) => other.provider === source.provider),
+      ) &&
+      kept.times.some((time) =>
+        row.times.some((other) => other.getTime() === time.getTime()),
+      ),
+  );
 }
 
 export async function reviewMatch(input: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEventWithinTrip, sanitizeRunMessage } from "@/lib/scans";
+import { isEventWithinTrip, isSameShow, sanitizeRunMessage } from "@/lib/scans";
 import type { NormalizedProviderEvent } from "@/lib/providers";
 
 const trip = {
@@ -73,5 +73,42 @@ describe("scan filtering", () => {
     expect(message).not.toContain("alpha123");
     expect(message).not.toContain("hidden456");
     expect(message).not.toContain("abc.def");
+  });
+});
+
+describe("cross-provider listings", () => {
+  const startAt = new Date("2026-11-20T02:00:00.000Z");
+  const thaliaHall = { latitude: 41.8576, longitude: -87.6597 };
+  const kept = { times: [startAt], venue: thaliaHall, sources: [{ provider: "ticketmaster" }] };
+  const seatgeek = [{ provider: "seatgeek" }];
+
+  it("folds another provider's listing at the same time and venue", () => {
+    expect(
+      isSameShow(kept, {
+        times: [new Date("2026-11-19T20:00:00.000Z"), new Date(startAt)],
+        sources: seatgeek,
+        venue: { latitude: 41.8578, longitude: -87.6596 },
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps listings from the same provider, another time or another venue apart", () => {
+    expect(
+      isSameShow(kept, { times: [startAt], sources: kept.sources, venue: thaliaHall }),
+    ).toBe(false);
+    expect(
+      isSameShow(kept, {
+        times: [new Date("2026-11-20T03:00:00.000Z")],
+        sources: seatgeek,
+        venue: thaliaHall,
+      }),
+    ).toBe(false);
+    expect(
+      isSameShow(kept, {
+        times: [startAt],
+        sources: seatgeek,
+        venue: { latitude: 41.8807, longitude: -87.6742 },
+      }),
+    ).toBe(false);
   });
 });

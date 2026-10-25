@@ -4,6 +4,7 @@ import {
   type ProviderHealth,
   type ProviderKey,
 } from "@/lib/env";
+import { normalizeArtistName } from "@/lib/normalize";
 import { fetchJson, firstUrl, isoWithoutMs, numberFrom, textFrom } from "./http";
 import type {
   EventProviderAdapter,
@@ -74,7 +75,6 @@ async function scanTicketmaster(
 ): Promise<ProviderScanResult> {
   const url = new URL("https://app.ticketmaster.com/discovery/v2/events.json");
   url.searchParams.set("apikey", process.env.TICKETMASTER_API_KEY!);
-  url.searchParams.set("classificationName", "music");
   url.searchParams.set("latlong", `${trip.latitude},${trip.longitude}`);
   url.searchParams.set("radius", String(Math.round(trip.radiusMiles)));
   url.searchParams.set("unit", "miles");
@@ -102,7 +102,7 @@ async function scanTicketmaster(
 
 async function scanJamBase(trip: ProviderTrip): Promise<ProviderScanResult> {
   const url = new URL(
-    process.env.JAMBASE_API_BASE_URL ?? "https://data.jambase.com/v3/events",
+    process.env.JAMBASE_API_BASE_URL ?? "https://api.data.jambase.com/v3/events",
   );
   url.searchParams.set("geoLatitude", String(trip.latitude));
   url.searchParams.set("geoLongitude", String(trip.longitude));
@@ -110,6 +110,7 @@ async function scanJamBase(trip: ProviderTrip): Promise<ProviderScanResult> {
   url.searchParams.set("geoRadiusUnits", "mi");
   url.searchParams.set("eventDateFrom", trip.startsOn.toISOString().slice(0, 10));
   url.searchParams.set("eventDateTo", trip.endsOn.toISOString().slice(0, 10));
+  // ponytail: first page only; follow pagination.nextPage once a live JamBase key exists to test it.
 
   const payload = await fetchJson<UnknownRecord>(url, {
     headers: {
@@ -138,7 +139,6 @@ async function scanSeatGeek(trip: ProviderTrip): Promise<ProviderScanResult> {
   url.searchParams.set("range", `${Math.round(trip.radiusMiles)}mi`);
   url.searchParams.set("datetime_utc.gte", trip.startsOn.toISOString());
   url.searchParams.set("datetime_utc.lte", trip.endsOn.toISOString());
-  url.searchParams.set("taxonomies.name", "concert");
   url.searchParams.set("per_page", "100");
 
   const events: unknown[] = [];
@@ -152,10 +152,38 @@ async function scanSeatGeek(trip: ProviderTrip): Promise<ProviderScanResult> {
     if (pageEvents.length === 0 || events.length >= total) break;
   }
 
-  return {
-    provider: "seatgeek",
-    events: events.map(mapSeatGeekEvent).filter(isEvent),
-  };
+  const mapped = events.map(mapSeatGeekEvent).filter(isEvent);
+  await fillImagesFromTicketmaster(mapped);
+  return { provider: "seatgeek", events: mapped };
+}
+
+// SeatGeek's API sends no images; borrow the headliner's picture from
+// Ticketmaster's attraction catalog when the names match exactly.
+async function fillImagesFromTicketmaster(events: NormalizedProviderEvent[]) {
+  if (!process.env.TICKETMASTER_API_KEY) return;
+  const cache = new Map<string, string | undefined>();
+  for (const event of events) {
+    const name = event.performers[0]?.name;
+    if (event.imageUrl || !name) continue;
+    if (!cache.has(name)) {
+      cache.set(name, await findTicketmasterAttractionImage(name).catch(() => undefined));
+      await sleep(225);
+    }
+    event.imageUrl = cache.get(name);
+  }
+}
+
+async function findTicketmasterAttractionImage(name: string) {
+  const url = new URL("https://app.ticketmaster.com/discovery/v2/attractions.json");
+  url.searchParams.set("apikey", process.env.TICKETMASTER_API_KEY!);
+  url.searchParams.set("keyword", name);
+  url.searchParams.set("size", "5");
+  const payload = await fetchJson<UnknownRecord>(url);
+  const wanted = normalizeArtistName(name);
+  const attraction = arrayAt(payload, ["_embedded", "attractions"])
+    .map(asRecord)
+    .find((candidate) => normalizeArtistName(textFrom(candidate?.name) ?? "") === wanted);
+  return attraction ? pickTicketmasterImage(arrayAt(attraction, ["images"])) : undefined;
 }
 
 async function scanPredictHq(trip: ProviderTrip): Promise<ProviderScanResult> {
@@ -198,6 +226,7 @@ function mapTicketmasterEvent(value: unknown): NormalizedProviderEvent | null {
   const venues = arrayAt(event, ["_embedded", "venues"]);
   const venue = asRecord(venues[0]);
   const attractions = arrayAt(event, ["_embedded", "attractions"]);
+  const classification = asRecord(arrayAt(event, ["classifications"])[0]);
   const title = textFrom(event.name);
   if (!title || !venue) return null;
 
@@ -205,6 +234,13 @@ function mapTicketmasterEvent(value: unknown): NormalizedProviderEvent | null {
     provider: "ticketmaster",
     providerId: textFrom(event.id),
     title,
+    category: [
+      textFrom(path(classification, ["segment", "name"])),
+      textFrom(path(classification, ["genre", "name"])),
+    ]
+      .filter((name) => name && name !== "Undefined")
+      .join(" · ") || undefined,
+    imageUrl: pickTicketmasterImage(arrayAt(event, ["images"])),
     startAt: parseDate(path(event, ["dates", "start", "dateTime"])),
     startLocal: textFrom(path(event, ["dates", "start", "localDate"])),
     timezone: textFrom(path(event, ["dates", "timezone"])),
@@ -253,6 +289,8 @@ function mapJamBaseEvent(value: unknown): NormalizedProviderEvent | null {
     provider: "jambase",
     providerId: textFrom(event.id) ?? textFrom(event.identifier),
     title,
+    category: textFrom(event["@type"]) ?? "Concert",
+    imageUrl: textFrom(event.image),
     startAt: parseDate(event.startDate ?? event.date),
     startLocal: textFrom(event.startDateLocal) ?? textFrom(event.date),
     timezone: textFrom(event.timezone),
@@ -276,9 +314,11 @@ function mapSeatGeekEvent(value: unknown): NormalizedProviderEvent | null {
     provider: "seatgeek",
     providerId: textFrom(event.id),
     title,
-    startAt: parseDate(event.datetime_utc),
+    category: seatGeekCategory(textFrom(event.type)),
+    // SeatGeek's datetime_utc has no "Z"; without it Date parses in the server's zone.
+    startAt: parseDate(textFrom(event.datetime_utc)?.replace(/Z?$/, "Z")),
     startLocal: textFrom(event.datetime_local),
-    timezone: textFrom(event.timezone),
+    timezone: textFrom(venue.timezone),
     status: textFrom(event.status) ?? "scheduled",
     providerUrl: textFrom(event.url),
     ticketUrl: textFrom(event.url),
@@ -306,6 +346,23 @@ function mapSeatGeekEvent(value: unknown): NormalizedProviderEvent | null {
   };
 }
 
+// Ticketmaster sends a dozen crops per event; take the smallest 16:9 one that
+// still looks sharp in a list thumbnail.
+function pickTicketmasterImage(images: unknown[]) {
+  const landscape = images
+    .map(asRecord)
+    .filter((image) => image?.ratio === "16_9" && (numberFrom(image.width) ?? 0) >= 300)
+    .sort((a, b) => (numberFrom(a!.width) ?? 0) - (numberFrom(b!.width) ?? 0));
+  return textFrom(landscape[0]?.url) ?? textFrom(asRecord(images[0])?.url);
+}
+
+// SeatGeek types are slugs like "concert" or "theater_broadway"; label music the
+// way Ticketmaster does so one "music" search covers both.
+function seatGeekCategory(type: string | undefined) {
+  const label = type?.replaceAll("_", " ");
+  return label && /concert|music/.test(label) ? `Music · ${label}` : label;
+}
+
 function mapPredictHqEvent(value: unknown): NormalizedProviderEvent | null {
   const event = asRecord(value);
   if (!event) return null;
@@ -318,6 +375,7 @@ function mapPredictHqEvent(value: unknown): NormalizedProviderEvent | null {
     provider: "predicthq",
     providerId: textFrom(event.id),
     title,
+    category: textFrom(event.category),
     startAt: parseDate(event.start),
     startLocal: textFrom(event.start_local) ?? textFrom(event.start),
     timezone: textFrom(event.timezone),

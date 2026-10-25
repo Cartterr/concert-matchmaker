@@ -10,6 +10,7 @@ export type ImportedArtist = {
   normalizedName: string;
   spotifyId?: string;
   spotifyUrl?: string;
+  imageUrl?: string;
   likedTrackCount: number;
   sampleTracks: string[];
   aliases: string[];
@@ -43,6 +44,8 @@ const jsonArtistSchema = z
     artist_id: z.string().optional(),
     spotifyUrl: z.string().optional(),
     spotify_url: z.string().optional(),
+    imageUrl: z.string().optional(),
+    image_url: z.string().optional(),
     likedTrackCount: z.number().optional(),
     liked_track_count: z.number().optional(),
     track_count: z.number().optional(),
@@ -119,6 +122,7 @@ function mapCsvArtist(row: Record<string, string>): ImportedArtist {
       "id",
     ]),
     spotifyUrl: firstValue(row, ["spotify_url", "artist_url", "external_url"]),
+    imageUrl: firstValue(row, ["image_url", "imageUrl", "artist_image_url"]),
     likedTrackCount: toNumber(
       firstValue(row, ["liked_track_count", "track_count", "liked_songs"]),
     ),
@@ -135,6 +139,7 @@ function mapJsonArtist(row: z.infer<typeof jsonArtistSchema>): ImportedArtist {
     name: row.name ?? row.artist_name ?? row.artist ?? "",
     spotifyId: row.spotifyId ?? row.spotify_id ?? row.artist_id,
     spotifyUrl: row.spotifyUrl ?? row.spotify_url,
+    imageUrl: row.imageUrl ?? row.image_url,
     likedTrackCount:
       row.likedTrackCount ?? row.liked_track_count ?? row.track_count ?? 0,
     sampleTracks: Array.isArray(row.sampleTracks)
@@ -151,6 +156,7 @@ function normalizeImportedArtist(input: {
   name: string;
   spotifyId?: string;
   spotifyUrl?: string;
+  imageUrl?: string;
   likedTrackCount?: number;
   sampleTracks?: string[];
   aliases?: string[];
@@ -163,6 +169,7 @@ function normalizeImportedArtist(input: {
     normalizedName: normalizeArtistName(name),
     spotifyId,
     spotifyUrl: blankToUndefined(input.spotifyUrl),
+    imageUrl: blankToUndefined(input.imageUrl),
     likedTrackCount: Math.max(0, input.likedTrackCount ?? 0),
     sampleTracks: uniqueStrings(input.sampleTracks ?? []),
     aliases: uniqueStrings(input.aliases ?? []),
@@ -204,6 +211,7 @@ function dedupeArtists(artists: ImportedArtist[]): ArtistCatalogParseResult {
     existing.aliases = uniqueStrings([...existing.aliases, ...artist.aliases]);
     existing.spotifyId ??= artist.spotifyId;
     existing.spotifyUrl ??= artist.spotifyUrl;
+    existing.imageUrl ??= artist.imageUrl;
     existing.externalIds = { ...artist.externalIds, ...existing.externalIds };
   }
 

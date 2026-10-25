@@ -8,9 +8,9 @@ import {
 describe("parseArtistCatalog", () => {
   it("imports Spotify-style CSV and dedupes normalized names", () => {
     const csv = [
-      "artist_name,artist_id,liked_track_count,sample_tracks",
-      "The Example Band,sp-1,2,Song A|Song B",
-      "Example Band,,1,Song C",
+      "artist_name,artist_id,liked_track_count,sample_tracks,image_url",
+      "The Example Band,sp-1,2,Song A|Song B,https://i.scdn.co/image/example",
+      "Example Band,,1,Song C,",
     ].join("\n");
 
     const artists = parseArtistCatalog(csv, "liked-artists.csv");
@@ -20,6 +20,7 @@ describe("parseArtistCatalog", () => {
       name: "The Example Band",
       normalizedName: "example band",
       spotifyId: "sp-1",
+      imageUrl: "https://i.scdn.co/image/example",
       likedTrackCount: 3,
     });
     expect(artists[0].sampleTracks).toEqual(["Song A", "Song B", "Song C"]);

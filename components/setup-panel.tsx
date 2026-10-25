@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/ui";
 
 export function SetupPanel({
   authConfigured,
@@ -23,35 +24,53 @@ export function SetupPanel({
   ];
 
   return (
-    <section className="rounded-lg border border-border bg-panel p-5">
+    <section className="panel p-5">
       <div className="mb-4 flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 size-5 text-warning" aria-hidden="true" />
+        <div className="grid size-10 shrink-0 place-items-center rounded-md border border-warning/30 bg-warning/10 text-warning">
+          <AlertTriangle className="size-5" aria-hidden="true" />
+        </div>
         <div>
-          <h1 className="text-lg font-semibold">Environment setup required</h1>
+          <h1 className="text-lg font-semibold tracking-tight">
+            Environment setup required
+          </h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            The app is scaffolded, but live data pages need the database and GitHub
-            OAuth environment variables from `.env.example`.
+            The app is scaffolded, but live data pages need the database and
+            GitHub OAuth environment variables from `.env.example`.
           </p>
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map((item) => (
-          <div key={item.label} className="rounded-md border border-border p-4">
+          <div
+            key={item.label}
+            className="rounded-md border border-border bg-surface p-4"
+          >
             <div className="flex items-center gap-2 text-sm font-medium">
               <CheckCircle2
-                className={
-                  item.ready ? "size-4 text-success" : "size-4 text-muted-foreground"
-                }
+                className={cn(
+                  "size-4",
+                  item.ready ? "text-accent" : "text-faint",
+                )}
                 aria-hidden="true"
               />
               {item.label}
+              <span
+                className={cn(
+                  "badge ml-auto",
+                  item.ready
+                    ? "border-accent/30 bg-accent/10 text-accent"
+                    : "border-border bg-muted text-muted-foreground",
+                )}
+              >
+                {item.ready ? "ok" : "missing"}
+              </span>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{item.detail}</p>
           </div>
         ))}
       </div>
       {error ? (
-        <pre className="mt-4 overflow-auto rounded-md bg-sidebar p-3 text-xs text-sidebar-foreground">
+        <pre className="mt-4 overflow-auto rounded-md border border-border bg-surface p-3 font-mono text-xs text-warning">
           {sanitizeSetupError(error)}
         </pre>
       ) : null}

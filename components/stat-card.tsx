@@ -7,14 +7,31 @@ export function StatCard({
   value: string | number;
   detail?: string;
 }) {
+  const isNumber = typeof value === "number";
+
   return (
-    <div className="rounded-lg border border-border bg-panel p-4">
-      <div className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
+    <div className="panel panel-hover group relative overflow-hidden p-4">
+      <div
+        aria-hidden="true"
+        className="absolute right-3 top-3 font-mono text-[10px] text-faint transition-colors group-hover:text-accent"
+      >
+        +
       </div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
+      <div className="microlabel">{label}</div>
+      <div
+        title={String(value)}
+        className={
+          isNumber
+            ? "mt-2 truncate font-mono text-3xl font-semibold tabular-nums"
+            : "mt-2 truncate text-base font-semibold"
+        }
+      >
+        {isNumber ? value.toLocaleString("en-US") : value}
+      </div>
       {detail ? (
-        <div className="mt-1 text-sm text-muted-foreground">{detail}</div>
+        <div className="mt-1 truncate text-sm text-muted-foreground">
+          {detail}
+        </div>
       ) : null}
     </div>
   );

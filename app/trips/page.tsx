@@ -57,28 +57,37 @@ export default async function TripsPage() {
       ) : null}
 
       {access.canRead ? (
-      <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_360px]">
+      <div className="mt-2 grid gap-5 xl:grid-cols-[1fr_360px]">
         <div className="space-y-5">
-          <section className="rounded-lg border border-border bg-panel p-5">
-            <h1 className="text-lg font-semibold">{activeTrip.name}</h1>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <section className="panel relative overflow-hidden p-5">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-20 -top-20 size-52 rounded-full bg-accent/5 blur-2xl"
+            />
+            <p className="kicker">{"// active trip"}</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight">
+              {activeTrip.name}
+            </h1>
+            <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-muted-foreground">Location</dt>
-                <dd className="mt-1 font-medium">{activeTrip.locationName}</dd>
+                <dt className="microlabel">Location</dt>
+                <dd className="mt-1.5 font-medium">{activeTrip.locationName}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Window</dt>
-                <dd className="mt-1 font-medium">
+                <dt className="microlabel">Window</dt>
+                <dd className="mt-1.5 font-mono text-sm font-medium tabular-nums">
                   {formatTripWindow(activeTrip)}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Radius</dt>
-                <dd className="mt-1 font-medium">{activeTrip.radiusMiles} miles</dd>
+                <dt className="microlabel">Radius</dt>
+                <dd className="mt-1.5 font-mono text-sm font-medium tabular-nums">
+                  {activeTrip.radiusMiles} mi
+                </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Catalog</dt>
-                <dd className="mt-1 font-medium">
+                <dt className="microlabel">Catalog</dt>
+                <dd className="mt-1.5 font-medium">
                   {latestCatalog?.name ?? "No catalog imported"}
                 </dd>
               </div>
@@ -90,7 +99,10 @@ export default async function TripsPage() {
         </div>
 
         <aside>
-          <h2 className="mb-3 text-base font-semibold">Provider status</h2>
+          <p className="microlabel">providers</p>
+          <h2 className="mb-3 mt-1 text-base font-semibold tracking-tight">
+            Provider status
+          </h2>
           <ProviderStatusGrid providers={getProviderHealth()} />
         </aside>
       </div>
